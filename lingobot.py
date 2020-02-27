@@ -109,9 +109,9 @@ class LingoBot:
     def _on_select_lesson(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data = query.data
-        lesson_num = callback_data[len(Interface.CALLBACK_LESSON_NUM):]
-        query.message.edit_text(Interface.lesson_text, reply_markup=Interface.lesson_markup)
-    @log()
+        lesson_num = int(callback_data[len(Interface.CALLBACK_LESSON_NUM):])
+        query.message.edit_text(Interface.lesson_text(lesson_num), reply_markup=Interface.lesson_markup)
+
     def _on_return_home(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         query.message.edit_text(Interface.home_text, reply_markup=Interface.home_markup)

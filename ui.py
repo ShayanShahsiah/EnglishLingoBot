@@ -1,5 +1,6 @@
 from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup as IKM, InlineKeyboardButton as IKB, ReplyKeyboardRemove
 from enum import Enum
+from lessons import parse_lessons, Lesson
 
 class Interface():
     CALLBACK_HOME = '-1'
@@ -14,17 +15,18 @@ class Interface():
     [IKB('لغات ستاره‌دار', callback_data=CALLBACK_REVIEW_WORDS)]])
 
     choose_lesson_text = 'Please choose one of the following:'
+
     num_lessons = 5
+    lessons = parse_lessons()
 
-    def _create_choose_lesson_markup(num, callback_lesson_num, callback_home):
-        button_list = []
-        for i in range(num):
-            button_list.append([IKB(f'lesson {i+1}', callback_data=callback_lesson_num+str(i))])
+    button_list = []
+    for i in range(num_lessons):
+        button_list.append([IKB(lessons[i].name, callback_data=CALLBACK_LESSON_NUM+str(i))])
 
-        button_list.append([IKB('بازگشت', callback_data=callback_home)])
-        return IKM(button_list)
+    button_list.append([IKB('بازگشت', callback_data=CALLBACK_HOME)])
+    choose_lesson_markup = IKM(button_list)
     
-    choose_lesson_markup = _create_choose_lesson_markup(num_lessons, CALLBACK_LESSON_NUM, CALLBACK_HOME)
+    
 
-    lesson_text = "Here's a sample text!"
+    lesson_text = lambda i, lessons=lessons: lessons[i].text
     lesson_markup = IKM([[IKB('بازگشت', callback_data=CALLBACK_CHOOSE_LESSON)]])
