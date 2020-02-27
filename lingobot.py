@@ -4,7 +4,7 @@ from ui import Interface
 from auth_token import token
 import logging
 
-#temporary log decoration, use with optional log text to use instead of function name
+#temporary log decoration
 import functools
 from time import gmtime, strftime, perf_counter as PF
 def log(verbose=True):
