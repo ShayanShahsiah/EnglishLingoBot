@@ -13,7 +13,7 @@ class Lesson:
         self.text = text
         self.vocab = vocab
         self.cloze = cloze
-
+#TODO: keeping the whole file in memory is not ideal, might be necessary to use ijson instead
 def parse_lessons():
     lessons: List[Lesson] = []
     with open('Data/eslyes.clean.json', 'r') as f:
