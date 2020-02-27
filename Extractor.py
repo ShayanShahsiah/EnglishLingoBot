@@ -29,7 +29,7 @@ def saveToFile(function):
                 json.dump(fileContent, f, indent=4)
         print("Saved for " + function.__name__)
     return saver
-#simple method to return text without adding so many parameters
+#simple method to return text without adding too many parameters
 def getText(url, headers=""):
     return requests.get(url, headers=headers).content.decode("utf-8", 'ignore')
 def removeTags(string: str):
