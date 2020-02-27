@@ -40,7 +40,7 @@ class LingoBot:
     def run(self):
         self._updater.start_polling()
         self._updater.idle()
-
+    @staticmethod
     def _save_message_to_history(handler_method):
         def handler(self, update: Update, context: CallbackContext):
             incoming_message = update.message
@@ -71,7 +71,7 @@ class LingoBot:
         message: Message = update.message
         return message.reply_text("Nothing to do for now lulz!")
 
-    @log(False)
+    @log()
     def _on_callback_query(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data: str = query.data
