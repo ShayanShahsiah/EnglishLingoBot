@@ -44,7 +44,8 @@ class LingoBot:
     @_save_message_to_history
     def _on_command_stop(self, update: Update, context: CallbackContext):
         message: Message = update.message
-        return message.reply_text("This command doesn't do anything yet!")
+        return message.reply_text("This command doesn't do anything yet! But I added this shit\
+            just to test how push and pull work!!")
 
     def _on_callback_query(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
