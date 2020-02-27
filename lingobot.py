@@ -42,9 +42,8 @@ class LingoBot:
     def run(self):
         self._updater.start_polling()
         self._updater.idle()
-    
 
-    def _save_message_to_history(handler_method):
+    def _save_message_to_history(self, handler_method):
         def handler(self, update: Update, context: CallbackContext):
             incoming_message = update.message
             if incoming_message:
