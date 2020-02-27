@@ -45,7 +45,7 @@ class LingoBot:
     def _on_command_stop(self, update: Update, context: CallbackContext):
         message: Message = update.message
         #Comment
-        return message.reply_text("Nothing to do for now!")
+        return message.reply_text("Nothing to do for now lulz!")
 
 
     def _on_callback_query(self, update: Update, context: CallbackContext):
