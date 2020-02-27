@@ -25,8 +25,6 @@ class Interface():
 
     button_list.append([IKB('بازگشت', callback_data=CALLBACK_HOME)])
     choose_lesson_markup = IKM(button_list)
-    
-    
 
     lesson_text = lambda i, lessons=lessons: lessons[i].text
     lesson_markup = IKM([[IKB('بازگشت', callback_data=CALLBACK_CHOOSE_LESSON)]])
