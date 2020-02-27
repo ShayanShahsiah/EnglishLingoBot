@@ -5,6 +5,7 @@ import re
 from html import unescape
 from bs4 import BeautifulSoup
 import json
+#something funny
 _working_dir = os.path.dirname(os.path.abspath(__file__))
 _database_dir_abs = os.path.join(_working_dir, "Data")
 if not os.path.exists(_database_dir_abs):
