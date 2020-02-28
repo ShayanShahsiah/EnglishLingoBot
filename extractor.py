@@ -98,14 +98,23 @@ class Extractor():
         data = None
         with open(temp, 'r') as f:
             data = json.load(f)
-        #sort
-        data = sorted(data, key=lambda k: k['grade'], reverse=True)
-        #remove duplicates
+        #remove duplicates and cleans up text, assuming it ends with a period of course
         new_d = []
+        getGradeRe = re.compile(r'(.*?)(\s*[0-9]+\.[0-9])(\, [0-9]{3})?')
         for x in data:
             if x not in new_d:
+                textstr: str = x["text"]
+                bitToCheck = textstr[-15:]
+                textstr = textstr[:-15]
+                find = re.search(getGradeRe, bitToCheck)
+                if find:
+                    bitToCheck = find.group(1)
+                textstr += bitToCheck
+                x["text"] = textstr.strip()
                 new_d.append(x)
         data = new_d
+        #sort
+        data = sorted(data, key=lambda k: k['grade'], reverse=True)
         #save
         with open(temp, 'w') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
