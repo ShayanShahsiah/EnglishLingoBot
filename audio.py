@@ -60,7 +60,10 @@ def synthesis(text: str, option = 1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:
         print("Option not implemented")
         return None
     texts = []
-    if len(text) > 300:
+
+    # 300-char limit not applied right now for some reason
+    #if len(text) > 300:
+    if False:
         splitStory(text, 300, texts)
     else:
         texts.append(text)
@@ -117,5 +120,7 @@ def synthesis(text: str, option = 1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:
                 f.write(audio.content)
             nameCounter += 1
         return fileName
-# text = "A baby has arms and legs. It has a mouth and eyes. It looks at everything. It eats everything. It smiles a lot. It cries a lot. It eats a lot. It drools a lot. It pees a lot. It poops a lot. It sleeps a lot. It tries to talk. It makes funny sounds. It says \"Googoo\" and \"Gaga.\" It waves its arms and legs. It doesn't do much else. It doesn't sit up. It doesn't stand up. It doesn't talk. It lies on its back. It lies on its stomach. After a year, it will do many things. It will crawl. It will stand up. It will walk. It will talk. But in the beginning, it just grows. It grows bigger and bigger. 0.0\n"
-# synthesis(text, 1)
+
+if __name__ == "__main__":
+    text = "A baby has arms and legs. It has a mouth and eyes. It looks at everything. It eats everything. It smiles a lot. It cries a lot. It eats a lot. It drools a lot. It pees a lot. It poops a lot. It sleeps a lot. It tries to talk. It makes funny sounds. It says \"Googoo\" and \"Gaga.\" It waves its arms and legs. It doesn't do much else. It doesn't sit up. It doesn't stand up. It doesn't talk. It lies on its back. It lies on its stomach. After a year, it will do many things. It will crawl. It will stand up. It will walk. It will talk. But in the beginning, it just grows. It grows bigger and bigger. 0.0\n"
+    synthesis(text, 1)
