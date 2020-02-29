@@ -5,13 +5,15 @@ import re
 from html import unescape
 from bs4 import BeautifulSoup
 import json
-#something funny
+# something funny
 _working_dir = os.path.dirname(os.path.abspath(__file__))
 _database_dir_abs = os.path.join(_working_dir, "Data")
 if not os.path.exists(_database_dir_abs):
     os.mkdir(_database_dir_abs)
-#deprecated:
-#wrapper to save funciton outputs to corresponding file //NOTE that only works correctly when function returns list of objects
+# deprecated:
+# wrapper to save funciton outputs to corresponding file //NOTE that only works correctly when function returns list of objects
+
+
 def saveToFile(function):
     def saver(*args, **kwargs):
         data = function(*args, **kwargs)
@@ -30,16 +32,23 @@ def saveToFile(function):
                 json.dump(fileContent, f, indent=4)
         print("Saved for " + function.__name__)
     return saver
-#simple method to return text without adding too many parameters
+# simple method to return text without adding too many parameters
+
+
 def getText(url, headers=""):
     return requests.get(url, headers=headers).content.decode("utf-8", 'ignore')
+
+
 def removeTags(string: str):
     return re.sub(r'<[^>]+>', '', string)
+
+
 class Extractor():
     ClozeTestEmptyWordSpecifier = "<+===+>"
     fileNameGrabberRe = re.compile(r'name": "(.*?)(?<!\\)"')
     gradeGrabberRe = re.compile(r'"grade": ("[0-9]*\.[0-9]*?")')
-    #save to file periodically, prevents high memory usage. takes in an object as input and saves in a list
+    # save to file periodically, prevents high memory usage. takes in an object as input and saves in a list
+
     def saveToFile(self, data, fileName, ensureNoRepetitions=False):
         fileName = os.path.join(_database_dir_abs, f"{fileName}.json")
         if not os.path.exists(fileName):
@@ -55,7 +64,7 @@ class Extractor():
                         if find:
                             if data["name"] == find.group(1):
                                 return False
-            #remove last character
+            # remove last character
             with open(fileName, 'rb+') as filehandle:
                 filehandle.seek(-1, os.SEEK_END)
                 filehandle.truncate()
@@ -64,6 +73,7 @@ class Extractor():
                 f.write(json.dumps(data, ensure_ascii=False))
                 f.write('\n]')
         return True
+
     def checkRepetitions(self, storyname, fileName):
         path = os.path.join(_database_dir_abs, f"{fileName}.json")
         try:
@@ -76,7 +86,8 @@ class Extractor():
         except FileNotFoundError:
             return False
         return False
-    #this doesn't override the data
+    # this doesn't override the data
+
     def fixErrors(self, fileName, readableFormat=True):
         print("start")
         # Fix names and change grade type to int:
@@ -89,16 +100,18 @@ class Extractor():
                     findGrade = re.search(self.gradeGrabberRe, line)
                     replacedText = line
                     if findName:
-                        replacedText = replacedText.replace(findName.group(1), findName.group(1).replace(r'\n', '').replace('*', ''))
+                        replacedText = replacedText.replace(findName.group(
+                            1), findName.group(1).replace(r'\n', '').replace('*', ''))
                     if findGrade:
-                        replacedText = replacedText.replace(findGrade.group(1), findGrade.group(1).replace(r'"', ''))
+                        replacedText = replacedText.replace(
+                            findGrade.group(1), findGrade.group(1).replace(r'"', ''))
                     tempFile.write(replacedText)
-        #Fix order; sort by grade order, remove duplicates and save to readable format optionally
-        #Note that this loads to RAM, might not work with bigger file sizes
+        # Fix order; sort by grade order, remove duplicates and save to readable format optionally
+        # Note that this loads to RAM, might not work with bigger file sizes
         data = None
         with open(temp, 'r') as f:
             data = json.load(f)
-        #remove duplicates and cleans up text, assuming it ends with a period of course
+        # remove duplicates and cleans up text, assuming it ends with a period of course
         new_d = []
         getGradeRe = re.compile(r'(.*?)(\s*[0-9]+\.[0-9])(\, [0-9]{3})?')
         for x in data:
@@ -113,12 +126,13 @@ class Extractor():
                 x["text"] = textstr.strip()
                 new_d.append(x)
         data = new_d
-        #sort
+        # sort
         data = sorted(data, key=lambda k: k['grade'], reverse=True)
-        #save
+        # save
         with open(temp, 'w') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
         print(f"done for {len(data)} unique stories")
+
     def eslyes(self, links: list):
         """
         extract from https://eslyes.com/supereasy/
@@ -127,15 +141,18 @@ class Extractor():
         Currently supported quiz types: Vocabulary and Cloze
         """
         FILENAME = "eslyes"
-        #list of stories extracted
+        # list of stories extracted
         baseURLre = re.compile(r'(.*\/)')
-        extractorMainLinksRe = re.compile(r'a href="(.*?)">\w*\.\s(.*?)<.*?(\w\.\w)')
-        extractorStoryRe = re.compile(r'msonormal.*?>(?:\s*[0-9]+\.\s*)?(.*?)\s*<', re.DOTALL)
+        extractorMainLinksRe = re.compile(
+            r'a href="(.*?)">\w*\.\s(.*?)<.*?(\w\.\w)')
+        extractorStoryRe = re.compile(
+            r'msonormal.*?>(?:\s*[0-9]+\.\s*)?(.*?)\s*<', re.DOTALL)
         cleanupRe = re.compile(r'(.*\.)(?:\s*[0-9]+\.[0-9]+)')
         ####
         vocabExtractorRe = re.compile(r'dictionary.*?>(.*?)<')
         ####
-        clozeBlockRe = re.compile(r'(<div class="ClozeBody".*?div>)', re.DOTALL)
+        clozeBlockRe = re.compile(
+            r'(<div class="ClozeBody".*?div>)', re.DOTALL)
         dataFromBlocksRe = re.compile(r'>\s*?([^\n]*?)\s*?<')
         answersRe = re.compile(r"\s=\s\'(\\.*?)\'")
 
@@ -144,7 +161,8 @@ class Extractor():
             baseURL = re.search(baseURLre, link).group(1)
             webpage = getText(link)
             if link == "https://eslyes.com/eslread/":
-                extractorMainLinksRe = re.compile(r'\w*\. <a href="(.*?)">(.*?)<.*?([0-9]+\.[0-9]+)', re.DOTALL)
+                extractorMainLinksRe = re.compile(
+                    r'\w*\. <a href="(.*?)">(.*?)<.*?([0-9]+\.[0-9]+)', re.DOTALL)
             try:
                 for subURL, name, grade in re.findall(extractorMainLinksRe, webpage):
                     subStory = dict()
@@ -161,8 +179,8 @@ class Extractor():
                     else:
                         fullURL = baseURL + subURL
                     webpage = getText(fullURL)
-                    #Extract cleaned up Story paragraph:
-                    storyParts = re.findall(extractorStoryRe, webpage) 
+                    # Extract cleaned up Story paragraph:
+                    storyParts = re.findall(extractorStoryRe, webpage)
                     with open("test.html", 'w') as f:
                         f.write(webpage)
                     for i in range(len(storyParts)):
@@ -175,39 +193,47 @@ class Extractor():
                                 subStory["text"] += subtext
                             break
                         subStory["text"] += subtext + '\n'
-                    #Extract quizzez
+                    # Extract quizzez
                     soup = BeautifulSoup(webpage, 'html.parser')
                     for element in soup.find_all("a", attrs={"target": "_blank"}):
                         if "Vocab" in element.text:
                             print("Getting vocab")
-                            url = baseURL + element["href"].replace(r'../', '', 1)
+                            url = baseURL + \
+                                element["href"].replace(r'../', '', 1)
                             vocabPage = getText(url)
                             subStory["vocab"] = list()
                             for word in re.findall(vocabExtractorRe, vocabPage):
                                 subStory["vocab"].append(word)
                         elif "Cloze" in element.text:
                             print("Getting cloze")
-                            url = baseURL + element["href"].replace(r'../', '', 1)
+                            url = baseURL + \
+                                element["href"].replace(r'../', '', 1)
                             clozePage = getText(url)
                             try:
-                                block = re.search(clozeBlockRe, clozePage).group(1)
+                                block = re.search(
+                                    clozeBlockRe, clozePage).group(1)
                             except:
                                 continue
                             subStory["cloze"] = dict()
                             subStory["cloze"]["text"] = ""
                             for dataChunk in re.findall(dataFromBlocksRe, block):
                                 if dataChunk:
-                                    subStory["cloze"]["text"] += unescape(dataChunk) + " " + self.ClozeTestEmptyWordSpecifier
-                            #remove trailing string
-                            subStory["cloze"]["text"] = subStory["cloze"]["text"][:-(len(self.ClozeTestEmptyWordSpecifier))]
+                                    subStory["cloze"]["text"] += unescape(
+                                        dataChunk) + " " + self.ClozeTestEmptyWordSpecifier
+                            # remove trailing string
+                            subStory["cloze"]["text"] = subStory["cloze"]["text"][:-
+                                                                                  (len(self.ClozeTestEmptyWordSpecifier))]
                             answersList = list()
                             for answer in re.findall(answersRe, clozePage):
-                                answersList.append(answer.encode().decode('unicode-escape'))
+                                answersList.append(
+                                    answer.encode().decode('unicode-escape'))
                             subStory["cloze"]["answers"] = answersList
                     self.saveToFile(subStory, FILENAME, True)
             except KeyboardInterrupt:
                 print("Exiting..")
                 break
+
+
 extractor = Extractor()
 extractor.fixErrors("eslyes")
 # extractor.eslyes(["https://eslyes.com/easykids/", "https://eslyes.com/nnse/", "https://eslyes.com/children/", "https://eslyes.com/extra/contents.htm", "https://eslyes.com/eslread/"])

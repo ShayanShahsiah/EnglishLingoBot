@@ -4,6 +4,7 @@ import json
 
 from deepspeech import Model
 
+
 def words_from_metadata(metadata):
     word = ""
     word_list = []
@@ -24,14 +25,15 @@ def words_from_metadata(metadata):
 
     return word_list
 
+
 def recognition(audio, words=True, use_lm=True):
     model = 'deepspeech-0.6.1-models/output_graph.pbmm'
     lm = 'deepspeech-0.6.1-models/lm.binary'
     trie = 'deepspeech-0.6.1-models/trie'
-    beam_width=500
-    lm_alpha=0.75
-    lm_beta=1.85
-    
+    beam_width = 500
+    lm_alpha = 0.75
+    lm_beta = 1.85
+
     ds = Model(model, beam_width)
 
     desired_sample_rate = ds.sampleRate()
@@ -46,6 +48,7 @@ def recognition(audio, words=True, use_lm=True):
         return words_from_metadata(ds.sttWithMetadata(audio))
     else:
         return ds.stt(audio)
+
 
 if __name__ == '__main__':
     print(recognition('Audio/out.wav', words=True))

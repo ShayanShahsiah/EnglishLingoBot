@@ -7,9 +7,10 @@ from recognition import recognition
 import logging
 import subprocess
 
-#temporary log decoration
+# temporary log decoration
 import functools
 from time import gmtime, strftime, perf_counter as PF
+
 
 def log(verbose=True):
     def logger(function):
@@ -19,7 +20,7 @@ def log(verbose=True):
             print(f"Entering \"{logText}\"")
             if verbose:
                 try:
-                    data = f'\tAt {strftime("%H:%M:%S", gmtime())}\n\tUser = {args[1]["_effective_user"]["first_name"]}\n\tUpdate ID: {args[1]["update_id"]}' 
+                    data = f'\tAt {strftime("%H:%M:%S", gmtime())}\n\tUser = {args[1]["_effective_user"]["first_name"]}\n\tUpdate ID: {args[1]["update_id"]}'
                 except:
                     data = f'\tAt {strftime("%H:%M:%S", gmtime())}'
                 finally:
@@ -27,13 +28,15 @@ def log(verbose=True):
                 start = PF()
                 value = function(*args, **kwargs)
                 end = PF()
-                print(f"Exiting \"{logText}\"\n\tTook {(end-start):.4f} seconds")
+                print(
+                    f"Exiting \"{logText}\"\n\tTook {(end-start):.4f} seconds")
             else:
                 value = function(*args, **kwargs)
                 print(f"Exiting \"{logText}\"")
             return value
         return wrapper_logger
     return logger
+
 
 class LingoBot:
     def __init__(self):
@@ -58,23 +61,28 @@ class LingoBot:
         return handler
 
     def _add_handlers(self):
-        self._dispatcher.add_handler(CommandHandler('start', self._on_command_start))
-        self._dispatcher.add_handler(CommandHandler('stop', self._on_command_stop))
-        self._dispatcher.add_handler(CallbackQueryHandler(self._on_callback_query))
-        self._dispatcher.add_handler(MessageHandler(Filters.voice, self._on_voice_message))
-        self._dispatcher.add_handler(MessageHandler(Filters.text, self._on_message))
+        self._dispatcher.add_handler(
+            CommandHandler('start', self._on_command_start))
+        self._dispatcher.add_handler(
+            CommandHandler('stop', self._on_command_stop))
+        self._dispatcher.add_handler(
+            CallbackQueryHandler(self._on_callback_query))
+        self._dispatcher.add_handler(MessageHandler(
+            Filters.voice, self._on_voice_message))
+        self._dispatcher.add_handler(
+            MessageHandler(Filters.text, self._on_message))
 
     @log()
-    #@_save_message_to_history
+    # @_save_message_to_history
     def _on_command_start(self, update: Update, context: CallbackContext):
-        #delete previous messages to keep things neat!
+        # delete previous messages to keep things neat!
         while len(self._message_history) > 0:
             self._message_history.pop().delete()
 
         message: Message = update.message
         return message.reply_text(Interface.home_text, reply_markup=Interface.home_markup)
 
-    #@_save_message_to_history
+    # @_save_message_to_history
     def _on_command_stop(self, update: Update, context: CallbackContext):
         message: Message = update.message
         return message.reply_text("Nothing to do for now lulz!")
@@ -99,45 +107,49 @@ class LingoBot:
         else:
             print('No matched callback')
 
-        #answer queries, optional parameter to send notification as well
+        # answer queries, optional parameter to send notification as well
         query.answer()
 
     @log()
-    #@_save_message_to_history
+    # @_save_message_to_history
     def _on_select_placement_test(self, update: Update, context: CallbackContext):
         bot: Bot = context.bot
         return bot.send_message(chat_id=update.effective_chat.id, text="I don't know how to deal with that yet!")
-    
+
     @log()
-    #@_save_message_to_history
+    # @_save_message_to_history
     def _on_select_review_words(self, update: Update, context: CallbackContext):
         bot: Bot = context.bot
         return bot.send_message(chat_id=update.effective_chat.id, text="I don't know how to deal with that yet!")
-    
+
     @log()
     def _on_select_choose_lesson(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
-        query.message.edit_text(Interface.choose_lesson_text, reply_markup=Interface.choose_lesson_markup)
-    
+        query.message.edit_text(
+            Interface.choose_lesson_text, reply_markup=Interface.choose_lesson_markup)
+
     @log()
     def _on_select_lesson(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data = query.data
         lesson_num = int(callback_data[len(Interface.CALLBACK_LESSON_NUM):])
-        query.message.edit_text(Interface.lesson_text(lesson_num), reply_markup=Interface.lesson_markup)
+        query.message.edit_text(Interface.lesson_text(
+            lesson_num), reply_markup=Interface.lesson_markup)
 
     @log()
-    #@_save_messages_to_history
+    # @_save_messages_to_history
     def _on_select_recognition_test(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
-        query.message.edit_text(Interface.recognition_text(self._recog_i), reply_markup=Interface.recognition_markup)
+        query.message.edit_text(Interface.recognition_text(
+            self._recog_i), reply_markup=Interface.recognition_markup)
 
     @log()
-    #@_save_messages_to_history
+    # @_save_messages_to_history
     def _on_voice_message(self, update: Update, context: CallbackContext):
         message: Message = update.message
         message.voice.get_file().download('Audio/voice.ogg')
-        output = subprocess.check_output(['bash','-c', 'ffmpeg -i Audio/voice.ogg -acodec pcm_s16le -ac 1 -ar 16000 -y Audio/out.wav'])
+        output = subprocess.check_output(
+            ['bash', '-c', 'ffmpeg -i Audio/voice.ogg -acodec pcm_s16le -ac 1 -ar 16000 -y Audio/out.wav'])
         processed = recognition('Audio/out.wav')
 
         result = '<b><i>incorrect</i></b>'
@@ -148,21 +160,25 @@ class LingoBot:
         message_text = '{}\n\nprocessed:\n{}\n\nresult: {}'.format(
             Interface.recognition_response_text(self._recog_i), str(processed), result)
 
-        outgoing_message = message.reply_text(message_text, reply_markup=Interface.recognition_response_markup, parse_mode='html')
+        outgoing_message = message.reply_text(
+            message_text, reply_markup=Interface.recognition_response_markup, parse_mode='html')
         self._recog_i = (self._recog_i + 1) % len(Interface.lessons[2].vocab)
         return outgoing_message
 
     def _on_return_home(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
-        query.message.edit_text(Interface.home_text, reply_markup=Interface.home_markup)
-    
+        query.message.edit_text(Interface.home_text,
+                                reply_markup=Interface.home_markup)
+
     @log()
-    #@_save_message_to_history
+    # @_save_message_to_history
     def _on_message(self, update: Update, context: CallbackContext):
         message: Message = update.message
         return message.reply_text("I don't know how to deal with that yet!")
 
+
 if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     lingo_bot = LingoBot()
     lingo_bot.run()
