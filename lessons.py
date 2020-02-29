@@ -18,7 +18,6 @@ class Lesson:
 def parse_lessons():
     lessons: List[Lesson] = []
     with open('Data/eslyes.clean.json', 'r') as f:
-        print('parsing...')
         lesson_dicts = json.load(f)
 
     for lesson_dict in lesson_dicts:

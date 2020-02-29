@@ -1,4 +1,6 @@
 *token.py
 __pycache__/
+env/
 test*
 Audio/*
+deepspeech*/

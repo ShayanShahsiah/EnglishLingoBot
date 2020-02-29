@@ -8,11 +8,13 @@ class Interface():
     CALLBACK_REVIEW_WORDS = '2'
     CALLBACK_CHOOSE_LESSON = '3'
     CALLBACK_LESSON_NUM = '4'
+    CALLBACK_RECOGNITION_TEST = '5'
 
     home_text = 'سلام. به روبات آموزش زبان خوش آمدید! برای شروع لطفاً یکی از موارد زیر را انتخاب کنید'
     home_markup = IKM([[IKB('آزمون تعیین سطح', callback_data=CALLBACK_PLACEMENT_TEST)],
     [IKB('درس‌ها', callback_data=CALLBACK_CHOOSE_LESSON)],
-    [IKB('لغات ستاره‌دار', callback_data=CALLBACK_REVIEW_WORDS)]])
+    [IKB('لغات ستاره‌دار', callback_data=CALLBACK_REVIEW_WORDS)],
+    [IKB('recognition test', callback_data=CALLBACK_RECOGNITION_TEST)]])
 
     choose_lesson_text = 'Please choose one of the following:'
 
@@ -28,3 +30,10 @@ class Interface():
 
     lesson_text = lambda i, lessons=lessons: lessons[i].text
     lesson_markup = IKM([[IKB('بازگشت', callback_data=CALLBACK_CHOOSE_LESSON)]])
+
+    recognition_text = lambda i, lessons=lessons: 'Please pronounce the following word twice:\n* ' + lessons[2].vocab[i]
+    recognition_markup = IKM([[IKB('بازگشت', callback_data=CALLBACK_HOME)]])
+
+    recognition_response_text = lambda i, lessons=lessons: 'Voice received in response to word: "{}"'.format(lessons[2].vocab[i])
+    recognition_response_markup = IKM([[IKB('بعدی', callback_data=CALLBACK_RECOGNITION_TEST)],
+        [IKB('بازگشت', callback_data=CALLBACK_HOME)]])
