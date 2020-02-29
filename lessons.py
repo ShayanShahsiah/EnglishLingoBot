@@ -9,14 +9,11 @@ import requests
 
 
 class Cloze():
-    text: str = None
-    answers: list = None
-    contents: dict() = None
-
     def __init__(self, clozeDict: dict):
-        self.text = clozeDict["text"]
-        self.answers = clozeDict["answers"]
-        self.contents = clozeDict
+        self.text: str = clozeDict["text"]
+        self.answers: list = clozeDict["answers"]
+        self.contents: dict() = clozeDict
+
     def __str__(self):
         return str(self.contents)
 
@@ -25,18 +22,13 @@ class Cloze():
 
 
 class Lesson():
-    name: str = None
-    grade: int = None
-    text: str = None
-    vocab: list = None
-    cloze: Cloze = None
-    contents: dict() = None
-
     def __init__(self, LessonDict: dict):
-        self.name = LessonDict["name"]
-        self.grade = LessonDict["grade"]
-        self.text = LessonDict["text"]
-        self.contents = LessonDict
+        self.name: str = LessonDict["name"]
+        self.grade: int = LessonDict["grade"]
+        self.text: str = LessonDict["text"]
+        self.contents: dict() = LessonDict
+        self.vocab: list = None
+        self.cloze: Cloze = None
         if "vocab" in LessonDict:
             self.vocab = LessonDict["vocab"]
         if "cloze" in LessonDict:
@@ -50,16 +42,15 @@ class Lesson():
 
 
 class Lessons():
-    allLessons = dict()
     instantated = False
 
     def __init__(self):
         if not self.instantated:
             with open(Files.TextDataJson, 'r') as f:
-                self.allLessons = json.load(f)
+                self.allLessons: dict = json.load(f)
         self.instantated = True
 
-    def getNRandom(self, hasVocab=True, hasCloze=True, count = 1) -> List[Lesson]:
+    def getNRandom(self, hasVocab=True, hasCloze=True, count=1) -> List[Lesson]:
         pickList = list()
         for each in self.allLessons:
             if hasVocab:
@@ -81,6 +72,7 @@ class Lessons():
             #no result
             return None
         return [Lesson(i) for i in lesson]
+
     def getRandom(self, hasVocab=True, hasCloze=True,) -> Lesson:
         pickList = list()
         for each in self.allLessons:
@@ -103,6 +95,7 @@ class Lessons():
             #no result
             return None
         return Lesson(lesson)
+
     def getAll(self, hasCloze=True, hasVocab=True, sort=True, reversed=False) -> List[Lesson]:
         all = list()
         for lesson in self.allLessons:
@@ -152,5 +145,5 @@ class Lessons():
 
 if __name__ == "__main__":
     test = Lessons()
-    a = test.getRandom()
+    a = test.getRandom().cloze.text
     print(a)
