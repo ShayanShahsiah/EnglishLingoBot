@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import json
 
 
@@ -8,7 +8,7 @@ class Lesson:
             self.text = text
             self.answers = answers
 
-    def __init__(self, name: str, grade: int, text: str, vocab: List[str], cloze: Cloze):
+    def __init__(self, name: str, grade: int, text: str, vocab: List[str], cloze: Optional[Cloze]):
         self.name = name
         self.grade = grade
         self.text = text
@@ -18,7 +18,7 @@ class Lesson:
 # TODO: keeping the whole file in memory is not ideal, might be necessary to use ijson instead
 
 
-def parse_lessons():
+def parse_lessons() -> List[Lesson]:
     lessons: List[Lesson] = []
     with open('Data/eslyes.clean.json', 'r') as f:
         lesson_dicts = json.load(f)

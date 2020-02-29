@@ -1,11 +1,12 @@
 from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup as IKM, InlineKeyboardButton as IKB, ReplyKeyboardRemove
-from enum import Enum, auto
 from abc import ABC, abstractmethod
+from enum import Enum, auto
+from typing import List
 from lessons import parse_lessons, Lesson
-
+import audio
 
 num_lessons = 5
-lessons = parse_lessons()
+lessons: List[Lesson] = parse_lessons()
 
 
 class Callback():
@@ -13,29 +14,44 @@ class Callback():
     PLACEMENT_TEST = 'PLACEMENT_TEST'
     REVIEW_WORDS = 'REVIEW_WORDS'
     CHOOSE_LESSON = 'CHOOSE_LESSON'
+
+    # The lesson number is added after 'LESSON_NUM' before callback.
+    # TODO: Probably need a better mechanism to carry lesson number information.
     LESSON_NUM = 'LESSON_NUM'
+
+    NARRATION = 'NARRATION'
     PRONUNCIATION_QUIZ = 'PRONUNCIATION_QUIZ'
 
 
-class Message(ABC):
+class Content():
+    class FileType(Enum):
+        TEXT = auto()
+        VOICE = auto()
+        PHOTO = auto()
+
+    def __init__(self, text=None, file_dir=None, file_type=FileType.TEXT):
+        self.text = text
+        self.file_dir = file_dir
+        self.file_type = file_type
+
+class Post(ABC):
     def __init__(self):
         self.parse_mode = 'html'
 
     @abstractmethod
-    def get_text(self):
+    def get_content(self) -> Content:
         pass
 
-    @abstractmethod
     def get_markup(self):
-        pass
+        return None
 
 
-class HomeMessage(Message):
+class HomePost(Post):
     def __init__(self):
         super().__init__()
 
-    def get_text(self):
-        return 'سلام. به روبات آموزش زبان خوش آمدید! برای شروع لطفاً یکی از موارد زیر را انتخاب کنید'
+    def get_content(self):
+        return Content(text='سلام. به روبات آموزش زبان خوش آمدید! برای شروع لطفاً یکی از موارد زیر را انتخاب کنید')
 
     def get_markup(self):
         return IKM([[IKB('آزمون تعیین سطح', callback_data=Callback.PLACEMENT_TEST)],
@@ -43,12 +59,12 @@ class HomeMessage(Message):
                     [IKB('لغات ستاره‌دار', callback_data=Callback.REVIEW_WORDS)]])
 
 
-class ChooseLessonMessage(Message):
+class ChooseLessonPost(Post):
     def __init__(self):
         super().__init__()
 
-    def get_text(self):
-        return 'Please choose one of the following:'
+    def get_content(self):
+        return Content(text='Please choose one of the following:')
 
     def get_markup(self):
         button_list = []
@@ -59,41 +75,53 @@ class ChooseLessonMessage(Message):
         return IKM(button_list)
 
 
-class LessonMessage(Message):
+class LessonPost(Post):
     def __init__(self, lesson_num):
         super().__init__()
         self.lesson_num = lesson_num
         self.quiz_available = lessons[self.lesson_num].vocab != None
 
-    def get_text(self):
+    def get_content(self):
         text = "<b>{}</b>\n\n{}".format(
             lessons[self.lesson_num].name, lessons[self.lesson_num].text)
         if not self.quiz_available:
             text += '\n\n <i>Pronunciation quiz not available for this lesson.</i>'
-        return text
+        return Content(text=text)
 
     def get_markup(self):
         if self.quiz_available:
-            return IKM([[IKB('Pronunciation Quiz', callback_data=Callback.PRONUNCIATION_QUIZ)],
+            return IKM([[IKB('Listen to Narration (takes time)', callback_data=Callback.NARRATION)],
+                        [IKB('Pronunciation Quiz',
+                             callback_data=Callback.PRONUNCIATION_QUIZ)],
                         [IKB('بازگشت', callback_data=Callback.CHOOSE_LESSON)]])
         else:
-            return IKM([[IKB('بازگشت', callback_data=Callback.CHOOSE_LESSON)]])
+            return IKM([[IKB('Listen to Narration (takes time)', callback_data=Callback.NARRATION)],
+                        [IKB('بازگشت', callback_data=Callback.CHOOSE_LESSON)]])
 
 
-class PronunciationQuizMessage(Message):
+class NarrationPost(Post):
+    def __init__(self, lesson_num):
+        super().__init__()
+        self.lesson_num = lesson_num
+
+    def get_content(self):
+        return Content(file_dir=audio.synthesis(lessons[self.lesson_num].text, 1), file_type=Content.FileType.VOICE)
+
+
+class PronunciationQuizPost(Post):
     def __init__(self, lesson_num, word_num):
         super().__init__()
         self.lesson_num = lesson_num
         self.word_num = word_num
 
-    def get_text(self):
-        return 'Please pronounce the following word 2 times:\n* ' + lessons[self.lesson_num].vocab[self.word_num]
+    def get_content(self):
+        return Content(text='Please pronounce the following word 2 times:\n* ' + lessons[self.lesson_num].vocab[self.word_num])
 
     def get_markup(self):
         return IKM([[IKB('بازگشت', callback_data=Callback.LESSON_NUM+str(self.lesson_num))]])
 
 
-class PronunciationResponseMessage(Message):
+class PronunciationResponsePost(Post):
     def __init__(self, lesson_num, word_num, output, result):
         super().__init__()
         self.lesson_num = lesson_num
@@ -103,7 +131,7 @@ class PronunciationResponseMessage(Message):
         self.questions_remaining = self.word_num < len(
             lessons[self.lesson_num].vocab) - 1
 
-    def get_text(self):
+    def get_content(self):
         description = 'Voice received in response to word: "{}"'.format(
             lessons[self.lesson_num].vocab[self.word_num])
 
@@ -113,7 +141,7 @@ class PronunciationResponseMessage(Message):
         if not self.questions_remaining:
             msg += '\n\n Well done! You finished the test.'
 
-        return msg
+        return Content(text=msg)
 
     def get_markup(self):
         if self.questions_remaining:
@@ -123,12 +151,12 @@ class PronunciationResponseMessage(Message):
             return IKM([[IKB('بازگشت', callback_data=Callback.LESSON_NUM+str(self.lesson_num))]])
 
 
-class UnimplementedResponseMessage(Message):
+class UnimplementedResponsePost(Post):
     def __init__(self):
         super().__init__()
 
-    def get_text(self):
-        return "Sry don't know how to respond to that!"
+    def get_content(self):
+        return Content(text="Sry don't know how to respond to that!")
 
     def get_markup(self):
-        return None
+        return IKM([[IKB('بازگشت', callback_data=Callback.HOME)]])
