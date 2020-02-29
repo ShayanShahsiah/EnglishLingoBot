@@ -1,36 +1,156 @@
 from typing import List
+from os.path import join
+from functools import wraps
+from fileHandler import Files
+from typing import List
+import random
 import json
+import requests
 
 
-class Lesson:
-    class Cloze:
-        def __init__(self, text: str, answers: List[str]):
-            self.text = text
-            self.answers = answers
+class Cloze():
+    text: str = None
+    answers: list = None
+    contents: dict() = None
 
-    def __init__(self, name: str, grade: int, text: str, vocab: List[str], cloze: Cloze):
-        self.name = name
-        self.grade = grade
-        self.text = text
-        self.vocab = vocab
-        self.cloze = cloze
+    def __init__(self, clozeDict: dict):
+        self.text = clozeDict["text"]
+        self.answers = clozeDict["answers"]
+        self.contents = clozeDict
+    def __str__(self):
+        return str(self.contents)
 
-# TODO: keeping the whole file in memory is not ideal, might be necessary to use ijson instead
+    def __repr__(self):
+        return str(self.contents)
 
 
-def parse_lessons():
-    lessons: List[Lesson] = []
-    with open('Data/eslyes.clean.json', 'r') as f:
-        lesson_dicts = json.load(f)
+class Lesson():
+    name: str = None
+    grade: int = None
+    text: str = None
+    vocab: list = None
+    cloze: Cloze = None
+    contents: dict() = None
 
-    for lesson_dict in lesson_dicts:
-        cloze_dict = lesson_dict.get('cloze', None)
-        if cloze_dict:
-            cloze = Lesson.Cloze(cloze_dict['text'], cloze_dict['answers'])
-        else:
-            cloze = None
-        lesson = Lesson(lesson_dict['name'], lesson_dict['grade'],
-                        lesson_dict['text'], lesson_dict.get('vocab', None), cloze)
-        lessons.append(lesson)
+    def __init__(self, LessonDict: dict):
+        self.name = LessonDict["name"]
+        self.grade = LessonDict["grade"]
+        self.text = LessonDict["text"]
+        self.contents = LessonDict
+        if "vocab" in LessonDict:
+            self.vocab = LessonDict["vocab"]
+        if "cloze" in LessonDict:
+            self.cloze = Cloze(LessonDict["cloze"])
 
-    return lessons
+    def __str__(self):
+        return str(self.contents)
+
+    def __repr__(self):
+        return str(self.contents)
+
+
+class Lessons():
+    allLessons = dict()
+    instantated = False
+
+    def __init__(self):
+        if not self.instantated:
+            with open(Files.TextDataJson, 'r') as f:
+                self.allLessons = json.load(f)
+        self.instantated = True
+
+    def getNRandom(self, hasVocab=True, hasCloze=True, count = 1) -> List[Lesson]:
+        pickList = list()
+        for each in self.allLessons:
+            if hasVocab:
+                if not "vocab" in each:
+                    continue
+            else:
+                if "vocab" in each:
+                    continue
+            if hasCloze:
+                if not "cloze" in each:
+                    continue
+            else:
+                if "cloze" in each:
+                    continue
+            pickList.append(each)
+        try:
+            lesson = random.sample(pickList, k=count)
+        except IndexError:
+            #no result
+            return None
+        return [Lesson(i) for i in lesson]
+    def getRandom(self, hasVocab=True, hasCloze=True,) -> Lesson:
+        pickList = list()
+        for each in self.allLessons:
+            if hasVocab:
+                if not "vocab" in each:
+                    continue
+            else:
+                if "vocab" in each:
+                    continue
+            if hasCloze:
+                if not "cloze" in each:
+                    continue
+            else:
+                if "cloze" in each:
+                    continue
+            pickList.append(each)
+        try:
+            lesson = random.choice(pickList)
+        except IndexError:
+            #no result
+            return None
+        return Lesson(lesson)
+    def getAll(self, hasCloze=True, hasVocab=True, sort=True, reversed=False) -> List[Lesson]:
+        all = list()
+        for lesson in self.allLessons:
+            if hasVocab:
+                if not "vocab" in lesson:
+                    continue
+            else:
+                if "vocab" in lesson:
+                    continue
+            if hasCloze:
+                if not "cloze" in lesson:
+                    continue
+            else:
+                if "cloze" in lesson:
+                    continue
+            if sort:
+                all = sorted(all, key=lambda k: k['grade'], reverse=reversed)
+            all.append(Lesson(lesson))
+        return all
+
+    def getByGrade(self, minGrade, maxGrade, hasCloze=True, hasVocab=True) -> List[Lesson]:
+        """
+        also sorts w/ descending order
+        """
+        all = list()
+        for lesson in self.allLessons:
+            if hasVocab:
+                if not "vocab" in lesson:
+                    continue
+            else:
+                if "vocab" in lesson:
+                    continue
+            if hasCloze:
+                if not "cloze" in lesson:
+                    continue
+            else:
+                if "cloze" in lesson:
+                    continue
+            if lesson["grade"] >= minGrade and lesson["grade"] <= maxGrade:
+                all.append(lesson)
+        all = sorted(all, key=lambda k: k['grade'], reverse=True)
+        ret = list()
+        for one in all:
+            ret.append(Lesson(one))
+        return ret
+
+
+if __name__ == "__main__":
+    test = Lessons()
+    a = test.getRandom()
+    print(a)
