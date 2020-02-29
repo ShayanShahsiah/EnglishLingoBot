@@ -11,7 +11,7 @@ _database_dir_abs = os.path.join(_working_dir, "Data")
 if not os.path.exists(_database_dir_abs):
     os.mkdir(_database_dir_abs)
 # deprecated:
-# wrapper to save funciton outputs to corresponding file //NOTE that only works correctly when function returns list of objects
+# wrapper to save function outputs to corresponding file //NOTE that only works correctly when function returns list of objects
 
 
 def saveToFile(function):
