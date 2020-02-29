@@ -44,7 +44,8 @@ class LingoBot:
         self._dispatcher = self._updater.dispatcher
         self._add_handlers()
         self._message_history = []
-        self._recog_i = 0
+        self._pronunciation_word_num = 0
+        self._lesson_num = None
 
     def run(self):
         self._updater.start_polling()
@@ -102,8 +103,8 @@ class LingoBot:
             self._on_select_choose_lesson(update, context)
         elif (Interface.CALLBACK_LESSON_NUM in callback_data):
             self._on_select_lesson(update, context)
-        elif (callback_data == Interface.CALLBACK_RECOGNITION_TEST):
-            self._on_select_recognition_test(update, context)
+        elif (callback_data == Interface.CALLBACK_PRONUNCIATION_QUIZ):
+            self._on_select_pronunciation_quiz(update, context)
         else:
             print('No matched callback')
 
@@ -132,16 +133,23 @@ class LingoBot:
     def _on_select_lesson(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data = query.data
-        lesson_num = int(callback_data[len(Interface.CALLBACK_LESSON_NUM):])
+        self._lesson_num = int(
+            callback_data[len(Interface.CALLBACK_LESSON_NUM):])
         query.message.edit_text(Interface.lesson_text(
-            lesson_num), reply_markup=Interface.lesson_markup)
+            self._lesson_num), reply_markup=Interface.lesson_markup, parse_mode='html')
 
     @log()
     # @_save_messages_to_history
-    def _on_select_recognition_test(self, update: Update, context: CallbackContext):
+    def _on_select_pronunciation_quiz(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
-        query.message.edit_text(Interface.recognition_text(
-            self._recog_i), reply_markup=Interface.recognition_markup)
+        if Interface.lessons[self._lesson_num].vocab:
+            text = Interface.pronunciation_quiz_text(
+                self._lesson_num, self._pronunciation_word_num)
+            markup = Interface.pronunciation_quiz_markup(self._lesson_num)
+        else:
+            text = Interface.pronunciation_quiz_not_available
+            markup = Interface.pronunciation_over(self._lesson_num)
+        query.message.edit_text(text, reply_markup=markup)
 
     @log()
     # @_save_messages_to_history
@@ -154,15 +162,24 @@ class LingoBot:
 
         result = '<b><i>incorrect</i></b>'
         for word in processed:
-            if word.lower().strip() == Interface.lessons[2].vocab[self._recog_i].lower():
+            if word.lower() == Interface.lessons[self._lesson_num].vocab[self._pronunciation_word_num].lower().strip():
                 result = '<b><i>correct</i></b>'
 
         message_text = '{}\n\nprocessed:\n{}\n\nresult: {}'.format(
-            Interface.recognition_response_text(self._recog_i), str(processed), result)
+            Interface.pronunciation_response_text(self._lesson_num, self._pronunciation_word_num), str(processed), result)
+
+        if self._pronunciation_word_num < len(Interface.lessons[self._lesson_num].vocab) - 1:
+            markup = Interface.pronunciation_response_markup(self._lesson_num)
+            self._pronunciation_word_num += 1
+        else:
+            message_text += '\n\n Well done! You finished the test.'
+            markup = Interface.pronunciation_over(
+                self._lesson_num)
+            self._pronunciation_word_num = 0
 
         outgoing_message = message.reply_text(
-            message_text, reply_markup=Interface.recognition_response_markup, parse_mode='html')
-        self._recog_i = (self._recog_i + 1) % len(Interface.lessons[2].vocab)
+            message_text, reply_markup=markup, parse_mode='html')
+
         return outgoing_message
 
     def _on_return_home(self, update: Update, context: CallbackContext):

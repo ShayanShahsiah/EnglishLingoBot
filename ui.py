@@ -9,18 +9,17 @@ class Interface():
     CALLBACK_REVIEW_WORDS = '2'
     CALLBACK_CHOOSE_LESSON = '3'
     CALLBACK_LESSON_NUM = '4'
-    CALLBACK_RECOGNITION_TEST = '5'
+    CALLBACK_PRONUNCIATION_QUIZ = '5'
 
     home_text = 'سلام. به روبات آموزش زبان خوش آمدید! برای شروع لطفاً یکی از موارد زیر را انتخاب کنید'
     home_markup = IKM([[IKB('آزمون تعیین سطح', callback_data=CALLBACK_PLACEMENT_TEST)],
                        [IKB('درس‌ها', callback_data=CALLBACK_CHOOSE_LESSON)],
-                       [IKB('لغات ستاره‌دار', callback_data=CALLBACK_REVIEW_WORDS)],
-                       [IKB('recognition test', callback_data=CALLBACK_RECOGNITION_TEST)]])
-
-    choose_lesson_text = 'Please choose one of the following:'
+                       [IKB('لغات ستاره‌دار', callback_data=CALLBACK_REVIEW_WORDS)]])
 
     num_lessons = 5
     lessons = parse_lessons()
+
+    choose_lesson_text = 'Please choose one of the following:'
 
     button_list = []
     for i in range(num_lessons):
@@ -30,15 +29,27 @@ class Interface():
     button_list.append([IKB('بازگشت', callback_data=CALLBACK_HOME)])
     choose_lesson_markup = IKM(button_list)
 
-    def lesson_text(i, lessons=lessons): return lessons[i].text
-    lesson_markup = IKM(
-        [[IKB('بازگشت', callback_data=CALLBACK_CHOOSE_LESSON)]])
+    def lesson_text(lesson_num, lessons=lessons):
+        return "<b>{}</b>\n\n{}".format(lessons[lesson_num].name, lessons[lesson_num].text)
 
-    def recognition_text(
-        i, lessons=lessons): return 'Please pronounce the following word twice:\n* ' + lessons[2].vocab[i]
-    recognition_markup = IKM([[IKB('بازگشت', callback_data=CALLBACK_HOME)]])
+    lesson_markup = IKM([[IKB('Pronunciation Quiz', callback_data=CALLBACK_PRONUNCIATION_QUIZ)],
+                         [IKB('بازگشت', callback_data=CALLBACK_CHOOSE_LESSON)]])
 
-    def recognition_response_text(
-        i, lessons=lessons): return 'Voice received in response to word: "{}"'.format(lessons[2].vocab[i])
-    recognition_response_markup = IKM([[IKB('بعدی', callback_data=CALLBACK_RECOGNITION_TEST)],
-                                       [IKB('بازگشت', callback_data=CALLBACK_HOME)]])
+    pronunciation_quiz_not_available = 'No quiz available for this lesson.'
+
+    def pronunciation_quiz_text(lesson_num, word_num, lessons=lessons):
+        return 'Please pronounce the following word twice:\n* ' + lessons[lesson_num].vocab[word_num]
+
+    def pronunciation_quiz_markup(lesson_num, CALLBACK_LESSON_NUM=CALLBACK_LESSON_NUM):
+        return IKM([[IKB('بازگشت', callback_data=CALLBACK_LESSON_NUM+str(lesson_num
+                                                                         ))]])
+
+    def pronunciation_response_text(lesson_num, word_num, lessons=lessons):
+        return 'Voice received in response to word: "{}"'.format(lessons[lesson_num].vocab[word_num])
+
+    def pronunciation_response_markup(lesson_num, CALLBACK_PRONUNCIATION_QUIZ=CALLBACK_PRONUNCIATION_QUIZ, CALLBACK_LESSON_NUM=CALLBACK_LESSON_NUM):
+        return IKM([[IKB('بعدی', callback_data=CALLBACK_PRONUNCIATION_QUIZ)],
+                    [IKB('بازگشت', callback_data=CALLBACK_LESSON_NUM + str(lesson_num))]])
+
+    def pronunciation_over(lesson_num, CALLBACK_LESSON_NUM=CALLBACK_LESSON_NUM):
+        return IKM([[IKB('بازگشت', callback_data=CALLBACK_LESSON_NUM+str(lesson_num))]])
