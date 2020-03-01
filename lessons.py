@@ -7,7 +7,18 @@ import random
 import json
 import requests
 
-
+class Vocabulary():
+    def __init__(self, wordList: list):
+        self._list = wordList
+        self.word = self._list[0]
+        self.index = 0
+        self.len = len(self._list)
+    def next(self):
+        self.word = self._list[index]
+        self.index += 1
+        if self.index == self.len:
+            return None
+        return self
 class Cloze():
     def __init__(self, clozeDict: dict):
         self.text: str = clozeDict["text"]
@@ -28,10 +39,10 @@ class Lesson():
         self.text: str = LessonDict["text"]
         self.index: int = LessonDict["index"]
         self.contents: dict() = LessonDict
-        self.vocab: list = None
+        self.vocab: Vocabulary = None
         self.cloze: Cloze = None
         if "vocab" in LessonDict:
-            self.vocab = LessonDict["vocab"]
+            self.vocab = Vocabulary(LessonDict["vocab"])
         if "cloze" in LessonDict:
             self.cloze = Cloze(LessonDict["cloze"])
 
@@ -43,15 +54,24 @@ class Lesson():
 
 
 class Lessons():
-    instantated = False
-
     def __init__(self):
-        if not self.instantated:
-            with open(Files.TextDataJson, 'r') as f:
-                self.allLessons: dict = json.load(f)
+        self.instantated = False
+        self.__load()
+    def __load(self):
+        if self.instantated:
+            return
+        with open(Files.TextDataJson, 'r') as f:
+            self.allLessons: list = json.load(f)
         self.instantated = True
-
+    def __enter__(self):
+        self.instantated = False
+        self.__load()
+        return self
+    def __exit__(self, type, value, traceback):
+        del self.allLessons
+        self.instantated = False
     def getNRandom(self, hasVocab=True, hasCloze=True, count=1) -> List[Lesson]:
+        self.__load()
         pickList = list()
         for each in self.allLessons:
             if hasVocab:
@@ -75,6 +95,7 @@ class Lessons():
         return [Lesson(i) for i in lesson]
 
     def getRandom(self, hasVocab=True, hasCloze=True,) -> Lesson:
+        self.__load()
         pickList = list()
         for each in self.allLessons:
             if hasVocab:
@@ -98,6 +119,7 @@ class Lessons():
         return Lesson(lesson)
 
     def getAll(self, hasCloze=True, hasVocab=True, randomized=False, sorted=True, reversed=False) -> List[Lesson]:
+        self.__load()
         all = list()
         for lesson in self.allLessons:
             if hasVocab:
@@ -123,6 +145,7 @@ class Lessons():
         """
         also sorts w/ descending order
         """
+        self.__load()
         all = list()
         for lesson in self.allLessons:
             if hasVocab:
@@ -144,9 +167,11 @@ class Lessons():
         for one in all:
             ret.append(Lesson(one))
         return ret
-
+    def getByID(self, index: int) -> Lesson:
+        self.__load()
+        return Lesson(self.allLessons[-index-1])
 
 if __name__ == "__main__":
-    test = Lessons()
-    a = test.getRandom().cloze.text
-    print(a)
+    with Lessons() as test:
+        a = test.getByID(20)
+    print(a.text)

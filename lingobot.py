@@ -44,10 +44,11 @@ class LingoBot:
         self._updater = Updater(token=token, use_context=True)
         self._dispatcher = self._updater.dispatcher
         self._add_handlers()
-        self._word_num = 0
-        self._lesson_num = 0
-        self.lessonHandler = None
-
+        #these variables should exist for each user seperately, 
+        #fix this when database is available
+        self.currentLesson: Lesson = None
+        self.lessonHandler: ui.ChooseLessonPost = None
+        ########
     @log()
     def run(self):
         self._updater.start_polling()
@@ -136,7 +137,7 @@ class LingoBot:
             self._on_select_pronunciation_quiz(update, context)
             query.answer()
         elif ui.Callback.BASE_LESSON_STRING in callback_data:
-            print(callback_data.replace(ui.Callback.BASE_LESSON_STRING, ''))
+            self._on_select_lesson(update, context)
         else:
             print('No matched callback')
             print(callback_data)
@@ -176,10 +177,10 @@ class LingoBot:
     def _on_select_lesson(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data = query.data
-        self._lesson_num = int(
-            callback_data[len(ui.Callback.LESSON_NUM):])
-
-        post = ui.LessonPost(self._lesson_num)
+        lesson_num = int(callback_data.replace(ui.Callback.BASE_LESSON_STRING, ''))
+        lessons = Lessons()
+        self.currentLesson = lessons.getByID(lesson_num)
+        post = ui.LessonPost(self.currentLesson)
         self._post(update, context, post)
 
     @log()
@@ -189,7 +190,7 @@ class LingoBot:
 
     @log()
     def _on_select_pronunciation_quiz(self, update: Update, context: CallbackContext):
-        post = ui.PronunciationQuizPost(self._lesson_num, self._word_num)
+        post = ui.PronunciationQuizPost(self.currentLesson)
         self._post(update, context, post)
 
     @log()

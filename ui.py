@@ -21,6 +21,7 @@ class Callback():
     SEARCH_LESSONS_BY_NAME = "SEARCH_LESSONS_BY_NAME"
     NARRATION = 'NARRATION'
     PRONUNCIATION_QUIZ = 'PRONUNCIATION_QUIZ'
+    VOCABULARY_QUIZ = 'VOCABULARY_QUIZ'
     CLOZE_TEST = 'CLOZE_TEST'
 
 
@@ -107,7 +108,7 @@ class LessonPost(Post):
 
     def get_content(self):
         text = "<b>{}</b>\n\n{}".format(
-            lesson.name, lesson.text)
+            self.lesson.name, self.lesson.text)
         return Content(text=text)
 
     def get_markup(self):
@@ -117,6 +118,8 @@ class LessonPost(Post):
                         [IKB('Cloze Test', callback_data=Callback.CLOZE_TEST)])
         if self.vocab_available:
             markupList.append( 
+                        [IKB('Pronunciation Quiz', callback_data=Callback.PRONUNCIATION_QUIZ)])
+            markupList.append(
                         [IKB('Vocabulary Quiz', callback_data=Callback.VOCABULARY_QUIZ)])
         markupList.append(
                         [IKB('بازگشت', callback_data=Callback.CHOOSE_LESSON)]
@@ -132,41 +135,34 @@ class NarrationPost(Post):
         return Content(file_dir=synthesis(self.lesson.text, 1), file_type=Content.FileType.VOICE)
 
 
-class VocabQuizPost(Post):
-    def __init__(self, lesson: Lesson, wordIndex: int):
+class PronunciationQuizPost(Post):
+    def __init__(self, lesson: Lesson):
         super().__init__()
         self.lesson = lesson
-        self.wordIndex = wordIndex
     def get_content(self):
-        return Content(text='Please pronounce the following word 2 times:\n* ' + lesson.vocab[wordIndex])
+        return Content(text='Please pronounce the following word 2 times:\n')
     def get_markup(self):
         return IKM([[IKB('بازگشت', callback_data=Callback.BASE_LESSON_STRING + lesson.index)]])
 
-
-class VocabResponsePost(Post):
-    def __init__(self, lesson: Lesson, wordIndex: int, recognitionOutput: str, byOrder=True):
+class PronunciationResponsePost(Post):
+    def __init__(self, lesson: Lesson, recognitionOutput: str):
         super().__init__()
         self.lesson = lesson
-        self.wordIndex = wordIndex
         self.recognitionOutput = recognitionOutput
-        self.byOrder = byOrder
-        self.questions_remaining = -1
-        if byOrder:
-            self.questions_remaining = len(lesson.vocab) - wordIndex
     def get_content(self):
+        word = self.lesson.vocab.word
         description = 'Voice received in response to word: "{}"'.format(
-            lesson.vocab[self.wordIndex])
-        if self.recognitionOutput == self.lesson.vocab[wordIndex]:
+            word)
+        if self.recognitionOutput == word:
             result = True
         else:
             result = False
         msg = '{}\n\nprocessed:\n{}\n\nresult: {}\n\n'.format(
             description, self.output, result)
-        if self.byOrder:
-            msg += f"Remaining: {self.questions_remaining}"
-            self.questions_remaining -= 1
-        if self.questions_remaining == 0:
+        if self.lesson.vocab.next() is None:
             msg += '\n\n Well done! You finished the test.'
+        else:
+            msg += f"Remaining: {self.lesson.vocab.len - self.lesson.vocab.index}"
 
         return Content(text=msg)
 
@@ -176,7 +172,10 @@ class VocabResponsePost(Post):
                         [IKB('بازگشت', callback_data=Callback.BASE_LESSON_STRING + self.lesson.index)]])
         else:
             return IKM([[IKB('بازگشت', callback_data=Callback.BASE_LESSON_STRING + self.lesson.index)]])
-
+class PronunciationQuizPost(Post):
+    pass
+class PronunciationResponsePost(Post):
+    pass
 
 class UnimplementedResponsePost(Post):
     def __init__(self):
