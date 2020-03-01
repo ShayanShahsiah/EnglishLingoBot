@@ -43,7 +43,7 @@ def synthesis(text: str, option=1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60
         output:
             returns:
                 base file name that it's saved as
-            saved audio in parts into the audio folder specified in the file with maximum 300 chars each
+            saved audio in parts into the audio folder specified in the file with maximum 1000 chars each
             base file name is randomly generated for each text
     """
     if option is 1:
@@ -63,8 +63,8 @@ def synthesis(text: str, option=1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60
         return None
     texts = []
 
-    if len(text) > 300:
-        split_story(text, 300, texts)
+    if len(text) > 1000:
+        split_story(text, 1000, texts)
     else:
         texts.append(text)
     fileName = str(uuid4())

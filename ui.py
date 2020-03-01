@@ -90,12 +90,12 @@ class LessonPost(Post):
 
     def get_markup(self):
         if self.quiz_available:
-            return IKM([[IKB('Listen to Narration (takes time)', callback_data=Callback.NARRATION)],
+            return IKM([[IKB('Listen to Narration', callback_data=Callback.NARRATION)],
                         [IKB('Pronunciation Quiz',
                              callback_data=Callback.PRONUNCIATION_QUIZ)],
                         [IKB('بازگشت', callback_data=Callback.CHOOSE_LESSON)]])
         else:
-            return IKM([[IKB('Listen to Narration (takes time)', callback_data=Callback.NARRATION)],
+            return IKM([[IKB('Listen to Narration', callback_data=Callback.NARRATION)],
                         [IKB('بازگشت', callback_data=Callback.CHOOSE_LESSON)]])
 
 
@@ -105,7 +105,12 @@ class NarrationPost(Post):
         self.lesson_num = lesson_num
 
     def get_content(self):
-        return Content(file_dir=audio.synthesis(lessons[self.lesson_num].text, 1), file_type=Content.FileType.VOICE)
+        if self.lesson_num%2==0:
+            speaker = 1
+        else:
+            speaker = 2
+            
+        return Content(file_dir=audio.synthesis(lessons[self.lesson_num].text, speaker), file_type=Content.FileType.VOICE)
 
 
 class PronunciationQuizPost(Post):
