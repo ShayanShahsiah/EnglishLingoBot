@@ -1,9 +1,9 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, Filters, CallbackQueryHandler
 from telegram import Bot, Update, Message, CallbackQuery
 import ui
+from lessons import Lessons
 from auth_token import token
-from recognition import recognition
-from fileHandler import  FileFunctions, Files
+# from recognition import recognition
 
 import logging
 import subprocess
@@ -44,10 +44,11 @@ class LingoBot:
         self._updater = Updater(token=token, use_context=True)
         self._dispatcher = self._updater.dispatcher
         self._add_handlers()
-        self._message_history = []
         self._word_num = 0
-        self._lesson_num = None
+        self._lesson_num = 0
+        self.lessonHandler = None
 
+    @log()
     def run(self):
         self._updater.start_polling()
         self._updater.idle()
@@ -66,62 +67,110 @@ class LingoBot:
             MessageHandler(Filters.text, self._on_message))
 
     @log()
-    def _post_message(self, update: Update, context: CallbackContext, msg: ui.Message, edit=True):
+    def _post(self, update: Update, context: CallbackContext, post: ui.Post, edit=True):
         # TODO: possibly should use inline_query instead of callback_query
         editable = update.callback_query != None
         if edit and editable:
-            # Edit the previous message.
-            update.callback_query.message.edit_text(msg.get_text(),
-                                                    reply_markup=msg.get_markup(),
-                                                    parse_mode=msg.parse_mode)
+            # Edit the previous message instead of sending a new one.
+            content = post.get_content()
+            message = update.callback_query.message
+            if content.file_type == ui.Content.FileType.TEXT:
+                message.edit_text(content.text,
+                                  reply_markup=post.get_markup(),
+                                  parse_mode=post.parse_mode)
+            else:
+                # TODO: Edit a message and add file (e.g. voice) if possible?
+                pass
+
         else:
-            # No edit. Send a new message.
+            # Don't edit. Send a new message.
+            content = post.get_content()
             bot: Bot = context.bot
-            bot.send_message(text=msg.get_text(),
-                             chat_id=update.effective_chat.id,
-                             reply_markup=msg.get_markup(),
-                             parse_mode=msg.parse_mode)
+            if content.file_type == ui.Content.FileType.TEXT:
+                bot.send_message(text=content.text,
+                                 chat_id=update.effective_chat.id,
+                                 reply_markup=post.get_markup(),
+                                 parse_mode=post.parse_mode)
+            elif content.file_type == ui.Content.FileType.VOICE:
+                with open(content.file_dir, 'rb') as f:
+                    bot.send_voice(voice=f,
+                                   chat_id=update.effective_chat.id,
+                                   reply_markup=post.get_markup(),
+                                   parse_mode=post.parse_mode)
 
     @log()
     def _on_command_start(self, update: Update, context: CallbackContext):
-        home_message = ui.HomeMessage()
-        self._post_message(update, context, home_message)
+        post = ui.HomePost()
+        self._post(update, context, post)
 
     @log()
     def _on_callback_query(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data: str = query.data
 
-        if (callback_data == ui.Callback.HOME):
+        if callback_data == ui.Callback.HOME:
             self._on_select_return_home(update, context)
-        elif (callback_data == ui.Callback.PLACEMENT_TEST):
+            query.answer()
+        elif callback_data == ui.Callback.PLACEMENT_TEST:
             self._on_select_placement_test(update, context)
-        elif (callback_data == ui.Callback.REVIEW_WORDS):
+            query.answer()
+        elif callback_data == ui.Callback.REVIEW_WORDS:
             self._on_select_review_words(update, context)
-        elif (callback_data == ui.Callback.CHOOSE_LESSON):
-            self._on_select_choose_lesson(update, context)
-        elif (ui.Callback.LESSON_NUM in callback_data):
-            self._on_select_lesson(update, context)
-        elif (callback_data == ui.Callback.PRONUNCIATION_QUIZ):
+            query.answer()
+        elif callback_data in {ui.Callback.CHOOSE_LESSON, ui.Callback.NEXT_LESSON_PAGE,ui.Callback.PREV_LESSON_PAGE} :
+            if ui.Callback.CHOOSE_LESSON in callback_data:
+                self.lessonHandler = self._on_select_choose_lesson(update, context)
+                query.answer()
+            elif self.lessonHandler is None:
+                query.answer("Lesson data don't exist. Go back or pick a story")
+            elif ui.Callback.NEXT_LESSON_PAGE in callback_data:
+                self._on_select_next_or_prev_lesson(update, context, self.lessonHandler, direction=True)
+                query.answer()
+            elif ui.Callback.PREV_LESSON_PAGE in callback_data:
+                self._on_select_next_or_prev_lesson(update, context, self.lessonHandler, direction=False)
+                query.answer()
+        elif callback_data == ui.Callback.NARRATION:
+            self._on_select_narration(update, context)
+            query.answer()
+        elif callback_data == ui.Callback.PRONUNCIATION_QUIZ:
             self._on_select_pronunciation_quiz(update, context)
+            query.answer()
+        elif ui.Callback.BASE_LESSON_STRING in callback_data:
+            print(callback_data.replace(ui.Callback.BASE_LESSON_STRING, ''))
         else:
             print('No matched callback')
+            print(callback_data)
+            query.answer()
 
-        # answer queries, optional parameter to send notification as well
-        query.answer()
 
     @log()
     def _on_select_placement_test(self, update: Update, context: CallbackContext):
-        self._post_message(update, context, ui.UnimplementedResponseMessage())
+        post = ui.UnimplementedResponsePost()
+        self._post(update, context, post)
 
     @log()
     def _on_select_review_words(self, update: Update, context: CallbackContext):
-        self._post_message(update, context, ui.UnimplementedResponseMessage())
+        post = ui.UnimplementedResponsePost()
+        self._post(update, context, post)
 
     @log()
     def _on_select_choose_lesson(self, update: Update, context: CallbackContext):
-        choose_lesson_message = ui.ChooseLessonMessage()
-        self._post_message(update, context, choose_lesson_message)
+        lessons = Lessons()
+        post = ui.ChooseLessonPost(lessons.getNRandom(count=10))
+        self._post(update, context, post)
+        return post
+    def _on_select_next_or_prev_lesson(self, update: Update, context: CallbackContext, lessonHandler: ui.ChooseLessonPost, direction):
+        """
+        True to go next
+        False to go prev
+        """
+        if direction:
+            post = lessonHandler.go_next_page()
+        else:
+            post = lessonHandler.go_prev_page()
+        if post is None:
+            return
+        self._post(update, context, post)
 
     @log()
     def _on_select_lesson(self, update: Update, context: CallbackContext):
@@ -130,20 +179,23 @@ class LingoBot:
         self._lesson_num = int(
             callback_data[len(ui.Callback.LESSON_NUM):])
 
-        lesson_message = ui.LessonMessage(self._lesson_num)
-        self._post_message(update, context, lesson_message)
+        post = ui.LessonPost(self._lesson_num)
+        self._post(update, context, post)
+
+    @log()
+    def _on_select_narration(self, update: Update, context: CallbackContext):
+        post = ui.NarrationPost(self._lesson_num)
+        self._post(update, context, post, edit=False)
 
     @log()
     def _on_select_pronunciation_quiz(self, update: Update, context: CallbackContext):
-        pronunciation_quiz_message = ui.PronunciationQuizMessage(
-            self._lesson_num, self._word_num)
-        self._post_message(update, context, pronunciation_quiz_message)
+        post = ui.PronunciationQuizPost(self._lesson_num, self._word_num)
+        self._post(update, context, post)
 
     @log()
     def _on_voice_message(self, update: Update, context: CallbackContext):
         message: Message = update.message
-        message.voice.get_file().download(FileFunctions.appendPaths(Files.AudioFolder, 'voice.ogg'))
-        #in chie akhe :/
+        message.voice.get_file().download('Audio/voice.ogg')
         output = subprocess.check_output(
             ['bash', '-c', 'ffmpeg -i Audio/voice.ogg -acodec pcm_s16le -ac 1 -ar 16000 -y Audio/out.wav'])
         output = recognition('Audio/out.wav')
@@ -153,23 +205,25 @@ class LingoBot:
             if word.lower() == ui.lessons[self._lesson_num].vocab[self._word_num].lower().strip():
                 result = '<b><i>correct</i></b>'
 
-        response_message = ui.PronunciationResponseMessage(
+        post = ui.PronunciationResponsePost(
             self._lesson_num, self._word_num, str(output), result)
 
-        self._post_message(update, context, response_message)
+        self._post(update, context, post)
 
         if self._word_num < len(ui.lessons[self._lesson_num].vocab) - 1:
             self._word_num += 1
         else:
             self._word_num = 0
 
+    @log()
     def _on_select_return_home(self, update: Update, context: CallbackContext):
-        message = ui.HomeMessage()
-        self._post_message(update, context, message)
+        post = ui.HomePost()
+        self._post(update, context, post)
 
     @log()
     def _on_message(self, update: Update, context: CallbackContext):
-        self._post_message(update, context, ui.UnimplementedResponseMessage())
+        post = ui.UnimplementedResponsePost()
+        self._post(update, context, post)
 
 
 if __name__ == '__main__':

@@ -26,6 +26,7 @@ class Lesson():
         self.name: str = LessonDict["name"]
         self.grade: int = LessonDict["grade"]
         self.text: str = LessonDict["text"]
+        self.index: int = LessonDict["index"]
         self.contents: dict() = LessonDict
         self.vocab: list = None
         self.cloze: Cloze = None
@@ -96,7 +97,7 @@ class Lessons():
             return None
         return Lesson(lesson)
 
-    def getAll(self, hasCloze=True, hasVocab=True, sort=True, reversed=False) -> List[Lesson]:
+    def getAll(self, hasCloze=True, hasVocab=True, randomized=False, sorted=True, reversed=False) -> List[Lesson]:
         all = list()
         for lesson in self.allLessons:
             if hasVocab:
@@ -111,8 +112,10 @@ class Lessons():
             else:
                 if "cloze" in lesson:
                     continue
-            if sort:
+            if sorted:
                 all = sorted(all, key=lambda k: k['grade'], reverse=reversed)
+            elif randomized:
+                all = random.shuffle(all)
             all.append(Lesson(lesson))
         return all
 
