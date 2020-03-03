@@ -3,7 +3,7 @@ import re
 import os.path as OS
 import subprocess
 from uuid import uuid4
-__Audio_Folder = OS.join(OS.dirname(OS.abspath(__file__)), "Audio")
+from fileHandler import FileFunctions, Files
 
 
 # split long text into multiple shorter paragraphs with maximum length len
@@ -134,5 +134,4 @@ def synthesis(text: str, option=1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60
 
 if __name__ == "__main__":
     text = "A baby has arms and legs. It has a mouth and eyes. It looks at everything. It eats everything. It smiles a lot. It cries a lot. It eats a lot. It drools a lot. It pees a lot. It poops a lot. It sleeps a lot. It tries to talk. It makes funny sounds. It says \"Googoo\" and \"Gaga.\" It waves its arms and legs. It doesn't do much else. It doesn't sit up. It doesn't stand up. It doesn't talk. It lies on its back. It lies on its stomach. After a year, it will do many things. It will crawl. It will stand up. It will walk. It will talk. But in the beginning, it just grows. It grows bigger and bigger. 0.0\n"
-    print(__Audio_Folder)
-    #print(synthesis(text, 1))
+    synthesis(text, 3)
