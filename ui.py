@@ -12,8 +12,9 @@ DISPLAYED_LESSONS = 30
 LESSONS_PER_PAGE = 6
 
 # Really tried to make this a "static" variable in Post; but weird things happened :|
+#TODO: put in database
 navigation_stack = []
-
+##
 lessons: Lessons = Lessons()
 defs: Definitions = Definitions()
 
@@ -48,7 +49,7 @@ class Content():
 
     Attributes:
         text (Optional[str]): String or Bytes to send
-        file_dir (Optional[str]): Local file directory for multimedia messages.
+        file (Optional[Union[str, bytes]]): file directory or content bytes for multimedia messages.
         type (Content.Type): Type of content (currently TEXT, VOICE, PHOTO).
     """
     class Type(Enum):
@@ -56,11 +57,11 @@ class Content():
         VOICE = auto()
         PHOTO = auto()
 
-    def __init__(self, data: Optional[Union[str, bytes]] = None, file_dir: Optional[str] = None,
+    def __init__(self, text: Optional[str] = None, file: Optional[Union[str, bytes]] = None,
                  type: 'Type' = Type.TEXT):
 
-        self.data = data
-        self.file_dir = file_dir
+        self.text = text
+        self.file = file
         self.type = type
 
 class Post(ABC):
@@ -155,7 +156,7 @@ class HomePost(Post):
         super().__init__()
 
     def get_content(self):
-        return Content(data='سلام. به روبات آموزش زبان خوش آمدید! برای شروع لطفاً یکی از موارد زیر را انتخاب کنید')
+        return Content(text='سلام. به روبات آموزش زبان خوش آمدید! برای شروع لطفاً یکی از موارد زیر را انتخاب کنید')
 
     def get_markup(self):
         return IKMarkup([
@@ -170,7 +171,7 @@ class ChooseLessonPost(PageContainerPost, BackSupportPost):
         self.lessons_per_page = LESSONS_PER_PAGE
 
     def get_content(self):
-        return Content(data='Please choose one of the following:')
+        return Content(text='Please choose one of the following:')
 
     def get_markup(self):
         buttons = []
@@ -214,7 +215,7 @@ class LessonPost(BackSupportPost):
             lessons.get_by_id(self.lesson_id).name, self.text)
         if not self.vocab_available:
             text += '\n\n <i>Pronunciation quiz not available for this lesson.</i>'
-        return Content(data=text)
+        return Content(text=text)
 
     def get_markup(self) -> IKMarkup:
         buttons = [
@@ -235,8 +236,6 @@ class PronunciationPost(GhostPost):
         assert self.vocab is not None
 
     def get_content(self) -> Content:
-        speaker = random.choice([1, 2])
-
         # Finding the original word without endings(ing, ed, etc.)
         original_word = None
         for vocab_word in self.vocab:
@@ -248,9 +247,9 @@ class PronunciationPost(GhostPost):
 
         text = '<b>{}</b>\n{}'.format(original_word, '\n'.join(translation))
 
-        file_dir=synthesis(f'{original_word}. {original_word}', speaker)
+        data=synthesis(f'{original_word}\n{original_word}', speed=80)
         
-        return Content(file_dir=file_dir, text=text, type=Content.Type.VOICE)
+        return Content(file=data, text=text, type=Content.Type.VOICE)
 
 class NarrationPost(GhostPost):
     def __init__(self, lesson_id):
@@ -262,7 +261,7 @@ class NarrationPost(GhostPost):
         speed = 100
         if lesson.grade <= 5: 
             speed = 85
-        return Content(data=synthesis(lesson.text, 0, speed), type=Content.Type.VOICE)
+        return Content(file=synthesis(lesson.text, 0, speed), type=Content.Type.VOICE)
 
 
 class PronunciationQuizPost(PageContainerPost, BackSupportPost):
@@ -274,7 +273,7 @@ class PronunciationQuizPost(PageContainerPost, BackSupportPost):
         self.lesson_id = lesson_id
 
     def get_content(self) -> Content:
-        return Content(data='Please pronounce the following word 2 times:\n* ' +
+        return Content(text='Please pronounce the following word 2 times:\n* ' +
                        lessons.get_by_id(self.lesson_id).vocab[self.page_idx])
 
 
@@ -296,7 +295,7 @@ class PronunciationResponsePost(GhostPost, BackSupportPost):
         if not self.questions_remaining:
             msg += '\n\n Well done! You finished the test.'
 
-        return Content(data=msg)
+        return Content(text=msg)
 
     def get_markup(self) -> IKMarkup:
         button_row = []
@@ -314,4 +313,4 @@ class UnimplementedResponsePost(BackSupportPost):
         self.text = text
 
     def get_content(self):
-        return Content(data=self.text)
+        return Content(text=self.text)

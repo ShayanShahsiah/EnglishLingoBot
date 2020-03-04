@@ -45,10 +45,10 @@ class LingoBot:
         self._updater = Updater(token=token, use_context=True)
         self._dispatcher = self._updater.dispatcher
         self._add_handlers()
+        #TODO: put in database:
         self._lesson_id: int
-
         self.main_post: ui.Post
-
+        ##
     @log()
     def run(self):
         self._updater.start_polling()
@@ -62,7 +62,7 @@ class LingoBot:
             content = post.get_content()
             message = update.callback_query.message
             if content.type == ui.Content.Type.TEXT:
-                message.edit_text(content.data,
+                message.edit_text(content.text,
                                   reply_markup=post.get_markup(),
                                   parse_mode=post.parse_mode)
             else:
@@ -74,30 +74,31 @@ class LingoBot:
             content = post.get_content()
             bot: Bot = context.bot
             if content.type == ui.Content.Type.TEXT:
-                bot.send_message(text=content.data,
+                bot.send_message(text=content.text,
                                  chat_id=update.effective_chat.id,
                                  reply_markup=post.get_markup(),
                                  parse_mode=post.parse_mode)
             elif content.type == ui.Content.Type.VOICE:
-                if type(content.data) is bytes:
-                    data = BytesIO(content.data)
-                    bot.send_voice(voice=data,
+                if type(content.file) is bytes:
+                    file = BytesIO(content.file)
+                    bot.send_voice(voice=file,
+                                caption=content.text,
                                 chat_id=update.effective_chat.id,
                                 reply_markup=post.get_markup(),
                                 parse_mode=post.parse_mode)
-                # Deprecated
-                # else:
-                #     assert content.file_dir is not None
-                #     with open(content.file_dir, 'rb') as f:
-                #         bot.send_voice(voice=f,
-                #                     chat_id=update.effective_chat.id,
-                #                     reply_markup=post.get_markup(),
-                #                     parse_mode=post.parse_mode)
+                else:
+                    assert content.file_dir is not None
+                    with open(content.file_dir, 'rb') as f:
+                        bot.send_voice(voice=f,
+                                    caption=content.text,
+                                    chat_id=update.effective_chat.id,
+                                    reply_markup=post.get_markup(),
+                                    parse_mode=post.parse_mode)
 
     def _add_handlers(self):
         self._dispatcher.add_handler(
             CommandHandler('start', self._on_command_start))
-
+            
         self._dispatcher.add_handler(
             CallbackQueryHandler(self._on_callback_query))
 
