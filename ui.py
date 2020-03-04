@@ -1,7 +1,7 @@
 from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as IKButton
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Union
 from lessons import Lesson, Lessons
 from synthesis import synthesis
 
@@ -43,7 +43,7 @@ class Content():
     Container class for the contents of a Post.
 
     Attributes:
-        text (Optional[str]): Text for text messages or optional caption for multimedia messages.
+        text (Optional[str]): String or Bytes to send
         file_dir (Optional[str]): Local file directory for multimedia messages.
         type (Content.Type): Type of content (currently TEXT, VOICE, PHOTO).
     """
@@ -52,10 +52,10 @@ class Content():
         VOICE = auto()
         PHOTO = auto()
 
-    def __init__(self, text: Optional[str] = None, file_dir: Optional[str] = None,
+    def __init__(self, data: Optional[Union[str, bytes]] = None, file_dir: Optional[str] = None,
                  type: 'Type' = Type.TEXT):
 
-        self.text = text
+        self.data = data
         self.file_dir = file_dir
         self.type = type
 
@@ -125,12 +125,12 @@ class PageContainerPost(Post):
     def get_markup(self) -> IKMarkup:
         navigation_buttons: List[IKButton] = []
 
-        if self.page_idx < self.num_pages - 1:
-            navigation_buttons.append(
-                IKButton('بعدی', callback_data=Callback.NEXT))
         if self.page_idx > 0:
             navigation_buttons.append(
                 IKButton('قبلی', callback_data=Callback.PREVIOUS))
+        if self.page_idx < self.num_pages - 1:
+            navigation_buttons.append(
+                IKButton('بعدی', callback_data=Callback.NEXT))
 
         return IKMarkup([navigation_buttons] + super().get_markup().inline_keyboard)
 
@@ -151,7 +151,7 @@ class HomePost(Post):
         super().__init__()
 
     def get_content(self):
-        return Content(text='سلام. به روبات آموزش زبان خوش آمدید! برای شروع لطفاً یکی از موارد زیر را انتخاب کنید')
+        return Content(data='سلام. به روبات آموزش زبان خوش آمدید! برای شروع لطفاً یکی از موارد زیر را انتخاب کنید')
 
     def get_markup(self):
         return IKMarkup([
@@ -166,7 +166,7 @@ class ChooseLessonPost(PageContainerPost, BackSupportPost):
         self.lessons_per_page = LESSONS_PER_PAGE
 
     def get_content(self):
-        return Content(text='Please choose one of the following:')
+        return Content(data='Please choose one of the following:')
 
     def get_markup(self):
         buttons = []
@@ -190,7 +190,7 @@ class LessonPost(BackSupportPost):
             lessons.get_by_id(self.lesson_id).name, lessons.get_by_id(self.lesson_id).text)
         if not self.vocab_available:
             text += '\n\n <i>Pronunciation quiz not available for this lesson.</i>'
-        return Content(text=text)
+        return Content(data=text)
 
     def get_markup(self) -> IKMarkup:
         buttons = [
@@ -208,12 +208,11 @@ class NarrationPost(GhostPost):
         self.lesson_id = lesson_id
 
     def get_content(self) -> Content:
-        if self.lesson_id % 2 == 0:
-            speaker = 1
-        else:
-            speaker = 2
-
-        return Content(file_dir=synthesis(lessons.get_by_id(self.lesson_id).text, speaker), type=Content.Type.VOICE)
+        lesson = lessons.get_by_id(self.lesson_id)
+        speed = 100
+        if lesson.grade <= 5: 
+            speed = 85
+        return Content(data=synthesis(lesson.text, 0, speed), type=Content.Type.VOICE)
 
 
 class PronunciationQuizPost(PageContainerPost, BackSupportPost):
@@ -225,7 +224,7 @@ class PronunciationQuizPost(PageContainerPost, BackSupportPost):
         self.lesson_id = lesson_id
 
     def get_content(self) -> Content:
-        return Content(text='Please pronounce the following word 2 times:\n* ' +
+        return Content(data='Please pronounce the following word 2 times:\n* ' +
                        lessons.get_by_id(self.lesson_id).vocab[self.page_idx])
 
 
@@ -247,7 +246,7 @@ class PronunciationResponsePost(GhostPost, BackSupportPost):
         if not self.questions_remaining:
             msg += '\n\n Well done! You finished the test.'
 
-        return Content(text=msg)
+        return Content(data=msg)
 
     def get_markup(self) -> IKMarkup:
         button_row = []
@@ -265,4 +264,4 @@ class UnimplementedResponsePost(BackSupportPost):
         self.text = text
 
     def get_content(self):
-        return Content(text=self.text)
+        return Content(data=self.text)

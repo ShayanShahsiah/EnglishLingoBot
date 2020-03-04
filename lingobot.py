@@ -3,7 +3,8 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContex
 from telegram import Bot, Update, Message, CallbackQuery
 import ui
 from auth_token import token
-from recognition import recognition
+from io import BytesIO
+# from recognition import recognition
 
 import logging
 import subprocess
@@ -61,7 +62,7 @@ class LingoBot:
             content = post.get_content()
             message = update.callback_query.message
             if content.type == ui.Content.Type.TEXT:
-                message.edit_text(content.text,
+                message.edit_text(content.data,
                                   reply_markup=post.get_markup(),
                                   parse_mode=post.parse_mode)
             else:
@@ -73,17 +74,25 @@ class LingoBot:
             content = post.get_content()
             bot: Bot = context.bot
             if content.type == ui.Content.Type.TEXT:
-                bot.send_message(text=content.text,
+                bot.send_message(text=content.data,
                                  chat_id=update.effective_chat.id,
                                  reply_markup=post.get_markup(),
                                  parse_mode=post.parse_mode)
             elif content.type == ui.Content.Type.VOICE:
-                assert content.file_dir is not None
-                with open(content.file_dir, 'rb') as f:
-                    bot.send_voice(voice=f,
-                                   chat_id=update.effective_chat.id,
-                                   reply_markup=post.get_markup(),
-                                   parse_mode=post.parse_mode)
+                if type(content.data) is bytes:
+                    data = BytesIO(content.data)
+                    bot.send_voice(voice=data,
+                                chat_id=update.effective_chat.id,
+                                reply_markup=post.get_markup(),
+                                parse_mode=post.parse_mode)
+                # Deprecated
+                # else:
+                #     assert content.file_dir is not None
+                #     with open(content.file_dir, 'rb') as f:
+                #         bot.send_voice(voice=f,
+                #                     chat_id=update.effective_chat.id,
+                #                     reply_markup=post.get_markup(),
+                #                     parse_mode=post.parse_mode)
 
     def _add_handlers(self):
         self._dispatcher.add_handler(
@@ -109,6 +118,7 @@ class LingoBot:
         query: CallbackQuery = update.callback_query
         callback_data: str = query.data
         new_post: ui.Post
+        query_answer: str = ""
         if callback_data == ui.Callback.BACK:
             assert isinstance(self.main_post, ui.BackSupportPost)
             self.main_post = self.main_post.get_previous_post()
@@ -142,7 +152,7 @@ class LingoBot:
             assert isinstance(self.main_post, ui.LessonPost)
             lesson_id = self.main_post.lesson_id
             new_post = ui.NarrationPost(lesson_id)
-
+            query_answer = "Please be patient.."
         elif callback_data == ui.Callback.PRONUNCIATION_QUIZ:
             if isinstance(self.main_post, ui.PronunciationQuizPost):
                 new_post = self.main_post
@@ -177,11 +187,11 @@ class LingoBot:
                 'Sorry! An internal error occurred!')
             new_post = self.main_post
 
+        query.answer(query_answer)
         if new_post is self.main_post:
             self._post(update, context, new_post)
         else:
             self._post(update, context, new_post, edit=False)
-        query.answer()
 
     @log()
     def _on_voice_message(self, update: Update, context: CallbackContext):

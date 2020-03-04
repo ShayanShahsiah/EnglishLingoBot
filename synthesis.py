@@ -4,49 +4,98 @@ import os.path as OS
 import subprocess
 from uuid import uuid4
 from fileHandler import FileFunctions, Files
+from random import randrange
 
 
 # split long text into multiple shorter paragraphs with maximum length len
 def split_story(text: str, maxLen: int, result=list()):
-    if len(text) < maxLen:
+    lenT = len(text)
+    # look for newline
+    for i in range(1, lenT):
+        if text[i] == "\n" :
+            result.append(text[0:i])
+            split_story(text[i:lenT], maxLen, result)
+            return
+    if lenT < maxLen:
         result.append(text)
     else:
+         
         # look for first period
-        lenT = len(text)
         resultI = None
         for i in range(maxLen):
-            if text[i] == "." and text[i+1] == " ":
+            if text[i] == "." and text[i+1] == ' ':
                 resultI = i
         if resultI:
             result.append(text[0:resultI+1])
-            split_story(text[resultI+2:lenT], maxLen, result)
+            split_story(text[resultI+1:lenT], maxLen, result)
             return
         # no period found, split by space instead
         for i in reversed(range(maxLen)):
             if text[i] == " ":
-                result.append(text[0:i+1])
-                split_story(text[i+1:lenT], maxLen, result)
+                result.append(text[0:i])
+                split_story(text[i:lenT], maxLen, result)
                 return
+def smmlGen(text, speed = 100, gender: int = 0, variant: int = 1):
+    """
+    speed is percentage (100% is normal)
+    gender is int, 0 not to use, 1 for male and 2 for female
+    variant is voice variant
+    """
+    if gender is 1:
+        gstring = "male"
+    elif gender is 2:
+        gstring = "female"
+    else:
+        gstring = None
+    final = "<speak>"
+    final += f'<prosody rate="{speed}%">'
+    if gstring:
+        final += f'<voice gender="{gstring}" variant="{variant}">'
+    else:
+        final += f'<voice variant="{variant}">'
+    if text[0] == ' ':
+        final += '<break strength="x-weak"/>'
+        final += text[1:]
+    elif text[0] == '\n':
+        final += '<break strength="strong"/>'
+        final += text[1:]
+    else:
+        final += text
+    final += "</voice>"
+    final += "</prosody>"
+    final += "</speak>"
+    return final
 
 
-def synthesis(text: str, option=1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"):
+def appendMP3(sound1: bytes, sound2: bytes):
+    """
+    Append mp3 formatted bytes together
+    """
+    if sound1 is None:
+        if sound2 is None:
+            return None
+        return sound2
+    sound1 += sound2[20:]
+    return sound1
+def synthesis(text: str, option=0, speed = 100, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"):
     """
     Usage:
         synthesis(text to get, language option, user agent)
         options:
+            0 -> Random American male/female
             1 -> United States male voice
             2 -> United States female voice
             3 -> British male voice
             4 -> British female voice
             5 -> Austrailian male voice
             6 -> Austrailian female voice
+        speed:
+            percentage of speed to read at(100 is default)
         output:
             returns:
-                base file name that it's saved as
-            saved audio in parts into the audio folder specified in the file with maximum 1000 chars each
-            base file name is randomly generated for each text
+                resultant bytes in mp3 format
     """
-    if option is 1:
+    if option is 1 or option is 0:
         voice = "en-US-Wavenet-A"
     elif option is 2:
         voice = "en-US-Wavenet-C"
@@ -63,75 +112,43 @@ def synthesis(text: str, option=1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60
         return None
     texts = []
 
-    if len(text) > 1000:
-        split_story(text, 1000, texts)
-    else:
-        texts.append(text)
-    fileName = str(uuid4())
+    split_story(text, 850, texts)
     with requests.Session() as session:
         session.headers = {
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Connection": "keep-alive",
             "Host": "spik.ai",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
             "User-Agent": userAgent,
         }
         page = session.get("https://spik.ai/").text
         token = re.search(r"csrfmi.*?value='(.*?)'", page).group(1)
-        session.headers = {
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Cache-Control": "max-age=0",
-            "Connection": "keep-alive",
-            "Content-Length": "156",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Cookie": f"csrftoken={token}",
-            "Host": "spik.ai",
+        session.headers.update ({
             "Origin": "https://spik.ai",
             "Referer": "https://spik.ai/",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0",
-        }
+        })
         audioLinkRe = re.compile(r'a href="(\/generate.*?)"')
-        nameCounter = 0
+        result = None
+        variant = randrange(1,5)
+        gender = 0
+        if not option:
+            gender = randrange(1,3)
         for subtext in texts:
+            smmldata = smmlGen(subtext, speed, gender, variant)
             data = {
                 "csrfmiddlewaretoken": token,
-                "text_to_generate": subtext,
+                "text_to_generate": smmldata,
                 "voice_type": voice,
-                "text_or_ssml": "text",
+                "text_or_ssml": "ssml",
                 "button": ""
             }
             page = session.post("https://spik.ai/generate/", data=data).text
-            with open("test.html", 'w') as f:
-                f.write(page)
             audioLink = re.search(audioLinkRe, page).group(1)
-            with open(OS.join("Audio", f"syn.{nameCounter}.mp3"), 'wb') as f:
-                audio = session.get("https://spik.ai" + audioLink, headers="")
-                f.write(audio.content)
-            nameCounter += 1
-
-        num_files = nameCounter
-        files = ''
-        for i in range(num_files):
-            files += f'Audio/syn.{i}.mp3|'
-
-        output = subprocess.check_output(
-            ['bash', '-c', f'ffmpeg -i "concat:{files}"\
-                 -acodec copy -c:a libvorbis -q:a 4 -y Audio/syn.ogg'])
-        
-        return 'Audio/syn.ogg'
-
+            audio = session.get("https://spik.ai" + audioLink, headers="")
+            result = appendMP3(result, audio.content)
+        return result
 
 if __name__ == "__main__":
-    text = "A baby has arms and legs. It has a mouth and eyes. It looks at everything. It eats everything. It smiles a lot. It cries a lot. It eats a lot. It drools a lot. It pees a lot. It poops a lot. It sleeps a lot. It tries to talk. It makes funny sounds. It says \"Googoo\" and \"Gaga.\" It waves its arms and legs. It doesn't do much else. It doesn't sit up. It doesn't stand up. It doesn't talk. It lies on its back. It lies on its stomach. After a year, it will do many things. It will crawl. It will stand up. It will walk. It will talk. But in the beginning, it just grows. It grows bigger and bigger. 0.0\n"
-    synthesis(text, 3)
+    text = "A Baby\nA baby has arms and legs. It has a mouth and eyes. It looks at everything.\nIt eats everything. It smiles a lot. It cries a lot. It eats a lot. It drools a lot. It pees a lot.\nIt poops a lot. It sleeps a lot. It tries to talk. It makes funny sounds. It says \"Googoo\" and \"Gaga.\" It waves its arms and legs. It doesn't do much else. It doesn't sit up. It doesn't stand up. It doesn't talk. It lies on its back. It lies on its stomach. After a year, it will do many things. It will crawl. It will stand up. It will walk. It will talk. But in the beginning, it just grows. It grows bigger and bigger."
+    # for i in texts:
+    #     print(smmlGen(i))
+    # smmlGen(text)
+    with open("res.mp3", 'wb') as f: 
+        f.write(synthesis(text, 2))
