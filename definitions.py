@@ -5,7 +5,7 @@ class Definitions:
     def __init__(self):
         self._dict: Dict[str, List[str]] = dict()
 
-        with open('en_to_fa_dict.csv', 'r') as csv_file:
+        with open('Data/en_to_fa_dict.csv', 'r') as csv_file:
             content = csv.reader(csv_file, delimiter=',')
             for row in content:
                 if self._dict.get(row[0], None):
