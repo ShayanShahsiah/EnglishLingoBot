@@ -140,7 +140,6 @@ class LingoBot:
             self.main_post = ui.ChooseLessonPost()
             new_post = self.main_post
 
-
         elif callback_data.startswith(ui.Callback.BASE_LESSON_STRING):
             lesson_id = int(
                 callback_data[len(ui.Callback.BASE_LESSON_STRING):])
@@ -167,7 +166,8 @@ class LingoBot:
             new_post = self.main_post
 
         elif callback_data == ui.Callback.NEXT_QUIZ_QUESTION:
-            assert isinstance(self.main_post, ui.PronunciationQuizPost), print(self.main_post)
+            assert isinstance(self.main_post, ui.PronunciationQuizPost), print(
+                self.main_post)
             self.main_post.go_next()
             new_post = self.main_post
 
@@ -217,8 +217,12 @@ class LingoBot:
 
     @log()
     def _on_message(self, update: Update, context: CallbackContext):
-        self.main_post = ui.UnimplementedResponsePost()
-        self._post(update, context, self.main_post)
+        msg = update.message.text
+        if msg[0] == '/':
+            self._post(update, context, ui.PronunciationPost(msg[1:], self._lesson_id))
+        else:
+            self.main_post = ui.UnimplementedResponsePost()
+            self._post(update, context, self.main_post)
 
 
 if __name__ == '__main__':
