@@ -1,8 +1,11 @@
 from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as IKButton
 from abc import ABC, abstractmethod
 from enum import Enum, auto
+import random
+import copy
 from typing import List, Optional, Callable
-from lessons import Lesson, Lessons
+from lessons import Lessons
+from definitions import Definitions
 from synthesis import synthesis
 
 DISPLAYED_LESSONS = 30
@@ -12,6 +15,7 @@ LESSONS_PER_PAGE = 6
 navigation_stack = []
 
 lessons: Lessons = Lessons()
+defs: Definitions = Definitions()
 
 class Callback():
 
@@ -184,10 +188,30 @@ class LessonPost(BackSupportPost):
         super().__init__()
         self.lesson_id = lesson_id
         self.vocab_available = lessons.get_by_id(self.lesson_id).vocab is not None
+        self.text = self._slashify()
+
+    def _slashify(self) -> str:
+        text = lessons.get_by_id(self.lesson_id).text
+        vocab = copy.copy(lessons.get_by_id(self.lesson_id).vocab)
+        if vocab is None:
+            return text
+        
+        words: List[str] = text.split()
+        for i in range(len(words)):
+            matched = False
+            for j in range(len(vocab)):
+                if vocab[j] != '' and words[i].startswith(vocab[j]):
+                    matched = True
+                    vocab[j] = ''
+                    break
+            if matched:
+                words[i] = '/' + words[i]
+
+        return ' '.join(words)
 
     def get_content(self) -> Content:
         text = "<b>{}</b>\n\n{}".format(
-            lessons.get_by_id(self.lesson_id).name, lessons.get_by_id(self.lesson_id).text)
+            lessons.get_by_id(self.lesson_id).name, self.text)
         if not self.vocab_available:
             text += '\n\n <i>Pronunciation quiz not available for this lesson.</i>'
         return Content(text=text)
@@ -201,6 +225,32 @@ class LessonPost(BackSupportPost):
 
         return IKMarkup(buttons + super().get_markup().inline_keyboard)
 
+
+class PronunciationPost(GhostPost):
+    def __init__(self, word: str, lesson_id):
+        super().__init__()
+        self.word = word
+        self.vocab = lessons.get_by_id(lesson_id).vocab
+        print(self.word, self.vocab)
+        assert self.vocab is not None
+
+    def get_content(self) -> Content:
+        speaker = random.choice([1, 2])
+
+        # Finding the original word without endings(ing, ed, etc.)
+        original_word = None
+        for vocab_word in self.vocab:
+            if self.word.startswith(vocab_word):
+                original_word = vocab_word
+                break
+        assert original_word is not None
+        translation = defs.translate(original_word)
+
+        text = '<b>{}</b>\n{}'.format(original_word, '\n'.join(translation))
+
+        file_dir=synthesis(f'{original_word}. {original_word}', speaker)
+        
+        return Content(file_dir=file_dir, text=text, type=Content.Type.VOICE)
 
 class NarrationPost(GhostPost):
     def __init__(self, lesson_id):

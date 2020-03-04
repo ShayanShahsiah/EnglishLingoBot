@@ -29,7 +29,7 @@ def split_story(text: str, maxLen: int, result=list()):
                 return
 
 
-def synthesis(text: str, option=1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"):
+def synthesis(text: str, option=1, input_type='text', userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"):
     """
     Usage:
         synthesis(text to get, language option, user agent)
@@ -108,7 +108,7 @@ def synthesis(text: str, option=1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60
                 "csrfmiddlewaretoken": token,
                 "text_to_generate": subtext,
                 "voice_type": voice,
-                "text_or_ssml": "text",
+                "text_or_ssml": input_type,
                 "button": ""
             }
             page = session.post("https://spik.ai/generate/", data=data).text
@@ -128,10 +128,13 @@ def synthesis(text: str, option=1, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60
         output = subprocess.check_output(
             ['bash', '-c', f'ffmpeg -i "concat:{files}"\
                  -acodec copy -c:a libvorbis -q:a 4 -y Audio/syn.ogg'])
-        
+
         return 'Audio/syn.ogg'
 
 
 if __name__ == "__main__":
     text = "A baby has arms and legs. It has a mouth and eyes. It looks at everything. It eats everything. It smiles a lot. It cries a lot. It eats a lot. It drools a lot. It pees a lot. It poops a lot. It sleeps a lot. It tries to talk. It makes funny sounds. It says \"Googoo\" and \"Gaga.\" It waves its arms and legs. It doesn't do much else. It doesn't sit up. It doesn't stand up. It doesn't talk. It lies on its back. It lies on its stomach. After a year, it will do many things. It will crawl. It will stand up. It will walk. It will talk. But in the beginning, it just grows. It grows bigger and bigger. 0.0\n"
-    synthesis(text, 3)
+    text = '<!-- ?xml version="1.0"? --><speak xmlns="http://www.w3.org/2001/10/synthesis"xmlns:dc="http://purl.org/dc/elements/1.1/"version="1.0"><p><s xml:lang="en-US"><prosody rate="slow"><voice name="en-US-Wavenet-A">{word}<break time="1s"/>{word}</voice></prosody></s></p></speak>'.format(
+        word='apple'
+    )
+    synthesis(text, 3, input_type='ssml')
