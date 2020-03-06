@@ -70,7 +70,7 @@ class Lessons():
     def __init__(self):
         with open(Files.TextDataJson, 'r') as f:
             self._lesson_dicts: list = json.load(f)
-
+        self.len = len(self._lesson_dicts)
         # TODO: reverse lessons in json instead of dynamically
         self._lesson_dicts.reverse()
 
@@ -84,7 +84,7 @@ class Lessons():
                     min_grade=None, max_grade=None, shuffle=False, reverse=False) -> List[Lesson]:
 
         if count is None:
-            count = len(self._lesson_dicts)
+            count = self.len
 
         filtered_lessons: List[Lesson] = []
         for lesson_dict in self._lesson_dicts:

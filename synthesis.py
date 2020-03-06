@@ -11,11 +11,6 @@ from random import randrange
 def split_story(text: str, maxLen: int, result=list()):
     lenT = len(text)
     # look for newline
-    for i in range(1, lenT):
-        if text[i] == "\n" :
-            result.append(text[0:i])
-            split_story(text[i:lenT], maxLen, result)
-            return
     if lenT < maxLen:
         result.append(text)
     else:
@@ -55,12 +50,8 @@ def smmlGen(text, speed = 100, gender: int = 0, variant: int = 1):
         final += f'<voice variant="{variant}">'
     if text[0] == ' ':
         final += '<break strength="x-weak"/>'
-        final += text[1:]
-    elif text[0] == '\n':
-        final += '<break strength="strong"/>'
-        final += text[1:]
-    else:
-        final += text
+        text = text[1:]
+    final += text.replace('\n', '<break strength="strong"/>')
     final += "</voice>"
     final += "</prosody>"
     final += "</speak>"
@@ -77,10 +68,9 @@ def appendMP3(sound1: bytes, sound2: bytes):
         return sound2
     sound1 += sound2[20:]
     return sound1
-def synthesis(text: str, option=0, speed = 100, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"):
+def Synthesis(text: str, option=0, speed = 100, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"):
     """
     Usage:
-        synthesis(text to get, language option, user agent)
         options:
             0 -> Random American male/female
             1 -> United States male voice
@@ -147,8 +137,11 @@ def synthesis(text: str, option=0, speed = 100, userAgent="Mozilla/5.0 (Windows 
 
 if __name__ == "__main__":
     text = "A Baby\nA baby has arms and legs. It has a mouth and eyes. It looks at everything.\nIt eats everything. It smiles a lot. It cries a lot. It eats a lot. It drools a lot. It pees a lot.\nIt poops a lot. It sleeps a lot. It tries to talk. It makes funny sounds. It says \"Googoo\" and \"Gaga.\" It waves its arms and legs. It doesn't do much else. It doesn't sit up. It doesn't stand up. It doesn't talk. It lies on its back. It lies on its stomach. After a year, it will do many things. It will crawl. It will stand up. It will walk. It will talk. But in the beginning, it just grows. It grows bigger and bigger."
-    # for i in texts:
-    #     print(smmlGen(i))
+    texts = []
+    split_story(text, 100, texts)
+    for i in texts:
+        # print(i)
+        print(smmlGen(i))
     # smmlGen(text)
-    with open("res.mp3", 'wb') as f: 
-        f.write(synthesis(text, 2))
+    # with open("res.mp3", 'wb') as f: 
+    #     f.write(synthesis(text, 2))
