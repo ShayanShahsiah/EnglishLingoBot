@@ -97,7 +97,7 @@ class LingoBot:
                                     reply_markup=post.get_markup(),
                                     parse_mode=post.parse_mode)
                 if post.add_to_removal_list:
-                    globals.history.add_to_removal_stack(message)
+                    globals.history.add_to_removal_stack(message, update)
 
     def _add_handlers(self):
         self._dispatcher.add_handler(
@@ -154,6 +154,8 @@ class LingoBot:
 
         elif callback_data == ui.Callback.NARRATION:
             assert isinstance(self.main_post, ui.LessonPost)
+            #remove previous clutter
+            globals.history.clear_removal_stack(context.bot, update)
             lesson_id = self.main_post.lesson_id
             new_post = ui.NarrationPost(update, lesson_id)
             query_answer = "Please be patient.."
@@ -184,7 +186,7 @@ class LingoBot:
             assert isinstance(self.main_post, ui.PageContainerPost)
             new_post = self.main_post.get_previous_post()
         elif callback_data == ui.Callback.MESSAGE_CLEANUP:
-            globals.history.clear_removal_stack(context.bot)
+            globals.history.clear_removal_stack(context.bot, update)
         else:
             print(f'No callback found for: {callback_data}')
             self.main_post = ui.UnimplementedResponsePost(update, 
@@ -227,8 +229,10 @@ class LingoBot:
     def _on_message(self, update: Update, context: CallbackContext):
         msg = update.message.text
         if msg[0] == '/':
+            #remove previous clutter
+            globals.history.clear_removal_stack(context.bot, update)
             # These clutter the screen, add them to removal stack
-            globals.history.add_to_removal_stack(update.message)
+            globals.history.add_to_removal_stack(update.message, update)
             self._post(update, context, ui.PronunciationPost(update, msg[1:], self._lesson_id))
         else:
             self.main_post = ui.UnimplementedResponsePost(update)

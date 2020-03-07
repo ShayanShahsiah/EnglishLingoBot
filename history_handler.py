@@ -130,7 +130,7 @@ class HistoryHandler():
     def __init__(self):
         self._navigational_post: Dict[str, navigational_post_handler] = dict()
         # posts that are flagged as "to be removed"
-        self._removal_messages: List[Message] = list()
+        self._removal_messages: Dict[str, List[Message]] = list()
         # self.load_from_db()
     def load_from_db(self):
         raise NotImplementedError
@@ -157,21 +157,26 @@ class HistoryHandler():
         for owner_id in self._navigational_post:
             if not self._navigational_post[owner_id]:
                 del self._navigational_post[owner_id]
-    def add_to_removal_stack(self, message: Message) -> navigational_post_handler:
+    def add_to_removal_stack(self, message: Message, owner: Update) -> navigational_post_handler:
         """
         add a post to removal stack. The posts will remain here until remove_post is called
         """
-        self._removal_messages.append(message)
-    def clear_removal_stack(self, bot: Bot, removal_type: str = None):
+        owner_id = owner._effective_user.id
+        if self._removal_messages[owner_id]:
+            self._removal_messages[owner_id].append(message)
+        else:
+            self._removal_messages[owner_id] = [message]
+    def clear_removal_stack(self, bot: Bot, owner: Update, removal_type: str = None):
         """
         remove all posts in removal stack
         optional type specifier to only remove that type: NOT IMPLEMENTED YET
         requires a bot object used to remove the messages
         """
-        for message in self._removal_messages:
-            print(message.to_dict())
-            bot.deleteMessage(message.chat.id, message.message_id)
-        self._removal_messages = list()
+        owner_id = owner._effective_user.id
+        if self._removal_messages[owner_id]:
+            for message in self._removal_messages[owner_id]:
+                bot.deleteMessage(message.chat.id, message.message_id)
+            del self._removal_messages[owner_id]
     def make_navigational_post(self, post: Post, owner: Update)-> navigational_post_handler:
         """
         creates a navigational_post for owner 
