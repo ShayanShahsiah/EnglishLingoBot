@@ -31,7 +31,7 @@ def log(verbose=True):
                 start = PF()
                 value = function(*args, **kwargs)
                 end = PF()
-                print(f"Data:\n{globals.history}")
+                #print(f"Data:\n{globals.history}")
                 print(
                     f"Exiting \"{logText}\"\n\tTook {(end-start):.4f} seconds")
             else:
@@ -203,6 +203,7 @@ class LingoBot:
         # else:
         #     self._post(update, context, new_post, edit=False)
 
+        print(globals.history)
     @log()
     def _on_voice_message(self, update: Update, context: CallbackContext):
         assert isinstance(self.main_post, ui.PronunciationQuizPost)
@@ -224,7 +225,7 @@ class LingoBot:
             self._lesson_id, word_num, msg)
 
         self._post(update, context, new_post)
-
+        print(globals.history)
     @log()
     def _on_message(self, update: Update, context: CallbackContext):
         msg = update.message.text
@@ -238,6 +239,7 @@ class LingoBot:
             self.main_post = ui.UnimplementedResponsePost(update)
             self._post(update, context, self.main_post)
 
+        print(globals.history)
 
 if __name__ == '__main__':
     logging.basicConfig(

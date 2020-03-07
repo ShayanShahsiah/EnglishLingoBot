@@ -24,7 +24,8 @@ class Content():
         self.file = file
         self.type = type
     def __repr__(self):
-        return f"Text: {self.text}, fileType: {type(self.file)}, type: {self.type}"
+        safetext = self.text[:30].replace('\n', ' ') + '...'
+        return f"\n\t\tText: {safetext}\n\t\tfileType: {type(self.file)}\n\t\ttype: {self.type}"
 class Post(ABC):
     """
     Abstract base class for all posts.
@@ -55,11 +56,10 @@ class post_handler():
         self.post: Post = post
         self.update: Update = update
     def __repr__(self):
-        return f"Post Content: {self.post.get_content()}, Post Markup: {self.post.get_markup()}"
+        return f"\n\tPost Content: {self.post.get_content()}\n\tPost Markup: \n\t\t{str(self.post.get_markup())[:100] + '...'}"
 class navigational_post_handler():
-    def __init__(self, post: Post, update: Update):
+    def __init__(self):
         self._post_stack: List[post_handler] = list()
-        self._post_stack.append(post_handler(post, update))
         self._stack_index: int = 0
     def pop(self):
         if self._post_stack:
@@ -130,7 +130,7 @@ class HistoryHandler():
     def __init__(self):
         self._navigational_post: Dict[str, navigational_post_handler] = dict()
         # posts that are flagged as "to be removed"
-        self._removal_messages: Dict[str, List[Message]] = list()
+        self._removal_messages: Dict[str, List[Message]] = dict()
         # self.load_from_db()
     def load_from_db(self):
         raise NotImplementedError
@@ -162,7 +162,7 @@ class HistoryHandler():
         add a post to removal stack. The posts will remain here until remove_post is called
         """
         owner_id = owner._effective_user.id
-        if self._removal_messages[owner_id]:
+        if owner_id in self._removal_messages:
             self._removal_messages[owner_id].append(message)
         else:
             self._removal_messages[owner_id] = [message]
@@ -173,19 +173,20 @@ class HistoryHandler():
         requires a bot object used to remove the messages
         """
         owner_id = owner._effective_user.id
-        if self._removal_messages[owner_id]:
+        if owner_id in self._removal_messages:
             for message in self._removal_messages[owner_id]:
                 bot.deleteMessage(message.chat.id, message.message_id)
             del self._removal_messages[owner_id]
-    def make_navigational_post(self, post: Post, owner: Update)-> navigational_post_handler:
+    def make_navigational_post(self, owner: Update)-> navigational_post_handler:
         """
-        creates a navigational_post for owner 
-        if it already exists, clears it and makes a new one
+        creates a navigational_post for owner
+        if it exists, ignores it
         """
-        self.clear_posts(owner)
         owner_id = owner._effective_user.id
-        self._navigational_post[owner_id] = navigational_post_handler(post, owner)
-        return self._navigational_post[owner_id]
+        self._navigational_post[owner_id] = navigational_post_handler()
+    def add_navigational_post(self, post: Post, owner: Update):
+        owner_id = owner._effective_user.id
+        self._navigational_post[owner_id].append()
     def get_navigational_post(self, owner: Update) -> navigational_post_handler:
         """
         parameters:
@@ -201,7 +202,7 @@ class HistoryHandler():
     def __repr__(self):
         res = "Nav Posts\n"
         for owner_id in self._navigational_post:
-            res += f"Owner: {owner_id} Data: {self._navigational_post[owner_id]}"
+            res += f"\nOwner: {owner_id} \nData: {self._navigational_post[owner_id]}"
         res += "\nRemoval Posts\n"
         for removal in self._removal_messages:
             res += str(removal) + '\n'
@@ -211,30 +212,3 @@ if __name__ == "__main__":
     for one in a.to_dict()["inline_keyboard"]:
         for sub in one:
             print(sub['text'])
-a = {
-    'update_id': 128053597, 
-    'message': {'message_id': 603, 'date': 1583514771, 'chat': {'id': 714124313, 'type': 'private', 'username': 'Dorenas', 'first_name': 'MDorßa'}, 'text': '/houses', 'entities': [{'type': 'bot_command', 'offset': 0, 'length': 7}], 'caption_entities': [], 'photo': [], 'new_chat_members': [], 'new_chat_photo': [], 'delete_chat_photo': False, 'group_chat_created': False, 'supergroup_chat_created': False, 'channel_chat_created': False, 'from': {'id': 714124313, 'first_name': 'MDorßa', 'is_bot': False, 'username': 'Dorenas', 'language_code': 'fa'}}, 
-    '_effective_user': {'id': 714124313, 'first_name': 'MDorßa', 'is_bot': False, 'username': 'Dorenas', 'language_code': 'fa'}, 
-    '_effective_chat': {'id': 714124313, 'type': 'private', 'username': 'Dorenas', 'first_name': 'MDorßa'}, 
-    '_effective_message': {'message_id': 603, 'date': 1583514771, 'chat': {'id': 714124313, 'type': 'private', 'username': 'Dorenas', 'first_name': 'MDorßa'}, 'text': '/houses', 'entities': [{'type': 'bot_command', 'offset': 0, 'length': 7}], 'caption_entities': [], 'photo': [], 'new_chat_members': [], 'new_chat_photo': [], 'delete_chat_photo': False, 'group_chat_created': False, 'supergroup_chat_created': False, 'channel_chat_created': False, 'from': {'id': 714124313, 'first_name': 'MDorßa', 'is_bot': False, 'username': 'Dorenas', 'language_code': 'fa'}}
-    }
-b = {
-    'message_id': 608, 
-    'date': 1583515000, 
-    'chat': {'id': 714124313, 'type': 'private', 'username': 'Dorenas', 'first_name': 'MDorßa'}, 
-    'entities': [], 
-    'caption_entities': [{'type': 'bold', 'offset': 0, 'length': 5}], 
-    'photo': [], 
-    'voice': {'file_id': 'AwACAgQAAxkDAAICYF5ihXilJNUSnJeIFD87jl6hAAH9ggAC_QYAAg29GVOJpFCtaJtRWhgE', 'duration': 0, 'mime_type': 'audio/ogg', 'file_size': 12000}, 
-    'caption': 'house\nمنزل\nچهاردیواری\nجا دادن\nمنزل گزیدن\nمسکن\nمنزل دادن\nمنزلگاه\nمسکن دادن\nخاندان\nخانه\nسرای\nچاردیواری', 
-    'new_chat_members': [], 
-    'new_chat_photo': [], 
-    'delete_chat_photo': False, 
-    'group_chat_created': False, 
-    'supergroup_chat_created': False, 
-    'channel_chat_created': False, 
-    'reply_markup': {'inline_keyboard': [[{'text': 'بستن', 'callback_data': 'MESSAGE_CLEANUP'}]]}, 
-    'from': {'id': 938237304, 
-    'first_name': 'Facts Bot', 
-    'is_bot': True, 
-    'username': 'TebTibBot'}}
