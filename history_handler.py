@@ -34,33 +34,29 @@ class navigational_post_handler():
         if self._post_stack:
             return self._post_stack[-1]
         return None
-    def get(self, index, delete_proceeding = True):
+    def get(self, index):
         """
-        delete_proceeding deleted data after index
+        deletes proceeding
         """
         if index >= len(self._post_stack) or index <= -(len(self._post_stack)):
             raise IndexError
-        if delete_proceeding:
-            del self._post_stack[index+1:]
+        del self._post_stack[index+1:]
         return self._post_stack[index]
-    def get_first(self, type: str, get_first_not = False, delete_proceeding=True):
+    def get_first(self, type: str, get_first_not = False):
         """
         get the first instance of type in stack
         get_first_not specifies if it should get first that's NOT type
-        delete_proceeding specifies if proceeding datas should be deleted        
+        deletes proceeding stuff        
         """
         for i in reversed(range(len(self._post_stack))):
             if get_first_not:
                 if self._post_stack[i].post.type == type:
-                    if delete_proceeding:
-                        del self._post_stack[i+1:]
+                    del self._post_stack[i+1:]
                     return self._post_stack[i]
             else:
                 if self._post_stack[i].post.type != type:
-                    if delete_proceeding:
-                        del self._post_stack[i+1:]
+                    del self._post_stack[i+1:]
                     return self._post_stack[i]
-
         return None
     def read_from_db(self):
         raise NotImplementedError
