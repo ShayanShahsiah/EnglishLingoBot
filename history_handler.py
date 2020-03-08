@@ -1,60 +1,11 @@
-from enum import Enum, auto
 from typing import List, Optional, Union, Dict
-from abc import ABC, abstractmethod
 from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as IKButton, Update, Bot, Message
-from time import sleep
-class Content():
-    """
-    Container class for the contents of a Post.
-
-    Attributes:
-        text (Optional[str]): String or Bytes to send
-        file (Optional[Union[str, bytes]]): file directory or content bytes for multimedia messages.
-        type (Content.Type): Type of content (currently TEXT, VOICE, PHOTO).
-    """
-    class Type(Enum):
-        TEXT = auto()
-        VOICE = auto()
-        PHOTO = auto()
-
-    def __init__(self, text: Optional[str] = None, file: Optional[Union[str, bytes]] = None,
-                 type: 'Type' = Type.TEXT):
-
-        self.text = text
-        self.file = file
-        self.type = type
-    def __repr__(self):
-        safetext = self.text[:30].replace('\n', ' ') + '...'
-        return f"\n\t\tText: {safetext}\n\t\tfileType: {type(self.file)}\n\t\ttype: {self.type}"
-class Post(ABC):
-    """
-    Abstract base class for all posts.
-    """
-
-    def __init__(self, update: Update, edit = True):
-        self.update: Update = update
-        self.parse_mode: str = 'html'
-        self._update_history()
-        self.edit: bool = edit
-        self.type: str = self.__class__.__name__
-        # specifies if Post should be added to removal list
-        self.add_to_removal_list: bool = False
-    @abstractmethod
-    def _update_history(self):
-        pass
-
-    @abstractmethod
-    def get_content(self) -> Content:
-        pass
-    @abstractmethod
-    def get_markup(self) -> IKMarkup:
-        pass
+from copy import deepcopy
 
 
 class post_handler():
-    def __init__(self, post: Post, update: Update):
-        self.post: Post = post
-        self.update: Update = update
+    def __init__(self, post: 'Post'):
+        self.post: 'Post' = post
     def __repr__(self):
         return f"\n\tPost Content: {self.post.get_content()}\n\tPost Markup: \n\t\t{str(self.post.get_markup())[:100] + '...'}"
 class navigational_post_handler():
@@ -64,12 +15,12 @@ class navigational_post_handler():
     def pop(self):
         if self._post_stack:
             self._post_stack.pop()
-    def append(self, post: Post, update: Update):
+    def append(self, post: 'Post'):
         """
         appends if it doesn't exist already
         """
         if not post in self._post_stack:
-            self._post_stack.append(post_handler(post, update))
+            self._post_stack.append(post_handler(post))
     def previous(self):
         """
         returns previos, and pops current
@@ -130,24 +81,13 @@ class HistoryHandler():
     def __init__(self):
         self._navigational_post: Dict[str, navigational_post_handler] = dict()
         # posts that are flagged as "to be removed"
-        self._removal_messages: Dict[str, List[Message]] = dict()
+        self._removal_messages: Dict[str, List[List[int, int]]] = dict()
         # self.load_from_db()
     def load_from_db(self):
         raise NotImplementedError
     def write_to_db(self):
         raise NotImplementedError
         #other data to save here:
-    def clear_posts(self, owner: Update):
-        """
-        clear previous post data, in case it's not needed
-        """
-        try:
-            owner_id = owner.callback_query.from_user['id']
-        except AttributeError:
-            return False
-        if owner_id in self._navigational_post:
-            del self._navigational_post[owner_id]
-        return True
     def cleanup(self):
         """
         cleanup empty lists, and possibly superfluous data
@@ -157,15 +97,36 @@ class HistoryHandler():
         for owner_id in self._navigational_post:
             if not self._navigational_post[owner_id]:
                 del self._navigational_post[owner_id]
-    def add_to_removal_stack(self, message: Message, owner: Update) -> navigational_post_handler:
+    def add_to_removal_stack_short(self, message: Message, owner: Update) -> navigational_post_handler:
         """
-        add a post to removal stack. The posts will remain here until remove_post is called
+        add a post to removal stack. The posts will remain here until clear_removal_stack is called
+        * shorter version
         """
+        #copy since objects are passed by ref
         owner_id = owner._effective_user.id
+        data = [message.chat_id, message.message_id]
         if owner_id in self._removal_messages:
-            self._removal_messages[owner_id].append(message)
+            if data in self._removal_messages[owner_id]: 
+                #already in removal stack, use next message_id
+                return False
+            self._removal_messages[owner_id].append(data)
         else:
-            self._removal_messages[owner_id] = [message]
+            self._removal_messages[owner_id] = [data]
+        return True
+    def add_to_removal_stack(self, chat_id: int, message_id: int, owner_id: int) -> navigational_post_handler:
+        """
+        add a post to removal stack. The posts will remain here until clear_removal_stack is called
+        * light version
+        """
+        data = [chat_id, message_id]
+        if owner_id in self._removal_messages:
+            if data in self._removal_messages[owner_id]: 
+                #already in removal stack, use next message_id
+                return False
+            self._removal_messages[owner_id].append(data)
+        else:
+            self._removal_messages[owner_id] = [data]
+        return True
     def clear_removal_stack(self, bot: Bot, owner: Update, removal_type: str = None):
         """
         remove all posts in removal stack
@@ -174,20 +135,21 @@ class HistoryHandler():
         """
         owner_id = owner._effective_user.id
         if owner_id in self._removal_messages:
-            for message in self._removal_messages[owner_id]:
-                bot.deleteMessage(message.chat.id, message.message_id)
+            for message_list in self._removal_messages[owner_id]:
+                bot.deleteMessage(message_list[0], message_list[1])
             del self._removal_messages[owner_id]
-    def make_navigational_post(self, owner: Update)-> navigational_post_handler:
+    def make_navigational_post(self, owner_id: int)-> navigational_post_handler:
         """
-        creates a navigational_post for owner
+        creates a navigational_post for owner_id: int: ID of user
         if it exists, ignores it
         """
-        owner_id = owner._effective_user.id
-        self._navigational_post[owner_id] = navigational_post_handler()
-    def add_navigational_post(self, post: Post, owner: Update):
-        owner_id = owner._effective_user.id
-        self._navigational_post[owner_id].append()
-    def get_navigational_post(self, owner: Update) -> navigational_post_handler:
+        if owner_id not in self._navigational_post:
+            self._navigational_post[owner_id] = navigational_post_handler()
+    def add_navigational_post(self, post: 'Post', owner_id: int):
+        #copy since objects are passed by ref
+        copied = deepcopy(post)
+        self._navigational_post[owner_id].append(copied)
+    def get_navigational_post(self, owner_id: int) -> navigational_post_handler:
         """
         parameters:
             owner string specifies who the post belongs to, use something consistent like update.callback_query.from_user['id']
@@ -195,10 +157,16 @@ class HistoryHandler():
             list of navigational_post_handlers for owner.
             creates a list if it doesn't exist already
         """
-        owner_id = owner._effective_user.id
         if not owner_id in self._navigational_post:
             return None
         return self._navigational_post[owner_id]
+    def clear_navigational_post(self, owner_id: int):
+        """
+        clear previous post data, in case it's not needed
+        """
+        if owner_id in self._navigational_post:
+            del self._navigational_post[owner_id]
+        return True
     def __repr__(self):
         res = "Nav Posts\n"
         for owner_id in self._navigational_post:
@@ -208,7 +176,4 @@ class HistoryHandler():
             res += str(removal) + '\n'
         return res
 if __name__ == "__main__":
-    a = IKMarkup([[IKButton('بازگشت', callback_data="Callback.BACK")]])
-    for one in a.to_dict()["inline_keyboard"]:
-        for sub in one:
-            print(sub['text'])
+    pass

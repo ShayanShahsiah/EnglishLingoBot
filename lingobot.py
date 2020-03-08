@@ -8,7 +8,7 @@ from multiprocessing import Process
 # from recognition import recognition
 import logging
 import subprocess
-from history_handler import Content, Post
+from ui import Content, Post
 import globals
 #initial global variables, DO THIS ONLY ONCE
 globals.init()
@@ -31,7 +31,7 @@ def log(verbose=True):
                 start = PF()
                 value = function(*args, **kwargs)
                 end = PF()
-                #print(f"Data:\n{globals.history}")
+                print(globals.history)
                 print(
                     f"Exiting \"{logText}\"\n\tTook {(end-start):.4f} seconds")
             else:
@@ -96,8 +96,6 @@ class LingoBot:
                                     chat_id=update.effective_chat.id,
                                     reply_markup=post.get_markup(),
                                     parse_mode=post.parse_mode)
-                if post.add_to_removal_list:
-                    globals.history.add_to_removal_stack(message, update)
 
     def _add_handlers(self):
         self._dispatcher.add_handler(
@@ -114,6 +112,8 @@ class LingoBot:
 
     @log()
     def _on_command_start(self, update: Update, context: CallbackContext):
+        #clear history for user, incase start is pressed again:
+        globals.history.clear_navigational_post(update._effective_user.id)
         self.main_post = ui.HomePost(update)
         self._post(update, context, self.main_post)
 
@@ -124,6 +124,8 @@ class LingoBot:
         new_post: Post = None
         query_answer: str = ""
         edit = False
+        #clear clutter if there is any
+        globals.history.clear_removal_stack(context.bot, update)
         if callback_data == ui.Callback.BACK:
             assert isinstance(self.main_post, ui.BackSupportPost) or isinstance(self.main_post, ui.PageContainerPost)
             self.main_post = self.main_post.go_back()
@@ -155,7 +157,6 @@ class LingoBot:
         elif callback_data == ui.Callback.NARRATION:
             assert isinstance(self.main_post, ui.LessonPost)
             #remove previous clutter
-            globals.history.clear_removal_stack(context.bot, update)
             lesson_id = self.main_post.lesson_id
             new_post = ui.NarrationPost(update, lesson_id)
             query_answer = "Please be patient.."
@@ -203,7 +204,6 @@ class LingoBot:
         # else:
         #     self._post(update, context, new_post, edit=False)
 
-        print(globals.history)
     @log()
     def _on_voice_message(self, update: Update, context: CallbackContext):
         assert isinstance(self.main_post, ui.PronunciationQuizPost)
@@ -225,21 +225,19 @@ class LingoBot:
             self._lesson_id, word_num, msg)
 
         self._post(update, context, new_post)
-        print(globals.history)
     @log()
     def _on_message(self, update: Update, context: CallbackContext):
+        globals.history.clear_removal_stack(context.bot, update)
         msg = update.message.text
         if msg[0] == '/':
             #remove previous clutter
-            globals.history.clear_removal_stack(context.bot, update)
             # These clutter the screen, add them to removal stack
-            globals.history.add_to_removal_stack(update.message, update)
+            globals.history.add_to_removal_stack_short(update.message, update)
             self._post(update, context, ui.PronunciationPost(update, msg[1:], self._lesson_id))
         else:
             self.main_post = ui.UnimplementedResponsePost(update)
             self._post(update, context, self.main_post)
 
-        print(globals.history)
 
 if __name__ == '__main__':
     logging.basicConfig(
