@@ -35,6 +35,8 @@ def split_story(text: str, maxLen: int, result=list()):
                 result.append(text[0:i])
                 split_story(text[i:lenT], maxLen, result)
                 return
+
+                
 def smmlGen(text, speed = 100, gender: int = 0, variant: int = 1):
     """
     speed is percentage (100% is normal)
@@ -77,6 +79,8 @@ def appendMP3(sound1: bytes, sound2: bytes):
         return sound2
     sound1 += sound2[20:]
     return sound1
+
+
 def synthesis(text: str, option=0, speed = 100, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"):
     """
     Usage:

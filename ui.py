@@ -2,7 +2,7 @@ from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as I
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import List, Optional, Callable, Union
-import random
+import ast
 import copy
 from lessons import Lessons
 from definitions import Definitions
@@ -14,8 +14,7 @@ LESSONS_PER_PAGE = 6
 # Really tried to make this a "static" variable in Post; but weird things happened :|
 #TODO: put in database
 navigation_stack = []
-##
-lessons: Lessons = Lessons()
+
 defs: Definitions = Definitions()
 
 class Callback():
@@ -178,7 +177,7 @@ class ChooseLessonPost(PageContainerPost, BackSupportPost):
         for i in range(self.lessons_per_page):
             lesson_id = self.page_idx * self.lessons_per_page + i
             buttons.append([IKButton(
-                lessons.get_by_id(index=lesson_id).name,
+                Lessons.get_by_id(lesson_id).name,
                 callback_data=Callback.BASE_LESSON_STRING+str(lesson_id))])
 
         return IKMarkup(buttons + super().get_markup().inline_keyboard)
@@ -188,22 +187,23 @@ class LessonPost(BackSupportPost):
     def __init__(self, lesson_id):
         super().__init__()
         self.lesson_id = lesson_id
-        self.vocab_available = lessons.get_by_id(self.lesson_id).vocab is not None
+        self.vocab = ast.literal_eval(Lessons.get_by_id(self.lesson_id).vocab)
+        self.vocab_available = self.vocab is not None
         self.text = self._slashify()
 
     def _slashify(self) -> str:
-        text = lessons.get_by_id(self.lesson_id).text
-        vocab = copy.copy(lessons.get_by_id(self.lesson_id).vocab)
-        if vocab is None:
+        text = Lessons.get_by_id(self.lesson_id).text
+        self.vocab = ast.literal_eval(Lessons.get_by_id(self.lesson_id).vocab)
+        if self.vocab is None:
             return text
         
         words: List[str] = text.split()
         for i in range(len(words)):
             matched = False
-            for j in range(len(vocab)):
-                if vocab[j] != '' and words[i].startswith(vocab[j]):
+            for j in range(len(self.vocab)):
+                if self.vocab[j] != '' and words[i].startswith(self.vocab[j]):
                     matched = True
-                    vocab[j] = ''
+                    self.vocab[j] = ''
                     break
             if matched:
                 words[i] = '/' + words[i]
@@ -212,7 +212,7 @@ class LessonPost(BackSupportPost):
 
     def get_content(self) -> Content:
         text = "<b>{}</b>\n\n{}".format(
-            lessons.get_by_id(self.lesson_id).name, self.text)
+            Lessons.get_by_id(self.lesson_id).name, self.text)
         if not self.vocab_available:
             text += '\n\n <i>Pronunciation quiz not available for this lesson.</i>'
         return Content(text=text)
@@ -231,7 +231,7 @@ class PronunciationPost(GhostPost):
     def __init__(self, word: str, lesson_id):
         super().__init__()
         self.word = word
-        self.vocab = lessons.get_by_id(lesson_id).vocab
+        self.vocab = ast.literal_eval(Lessons.get_by_id(lesson_id).vocab)
         print(self.word, self.vocab)
         assert self.vocab is not None
 
@@ -257,7 +257,7 @@ class NarrationPost(GhostPost):
         self.lesson_id = lesson_id
 
     def get_content(self) -> Content:
-        lesson = lessons.get_by_id(self.lesson_id)
+        lesson = Lessons.get_by_id(self.lesson_id)
         speed = 100
         if lesson.grade <= 5: 
             speed = 85
@@ -266,7 +266,7 @@ class NarrationPost(GhostPost):
 
 class PronunciationQuizPost(PageContainerPost, BackSupportPost):
     def __init__(self, lesson_id):
-        self.vocab = lessons.get_by_id(lesson_id).vocab
+        self.vocab = ast.literal_eval(Lessons.get_by_id(lesson_id).vocab)
         assert self.vocab is not None
         super().__init__(len(self.vocab))
 
@@ -274,12 +274,12 @@ class PronunciationQuizPost(PageContainerPost, BackSupportPost):
 
     def get_content(self) -> Content:
         return Content(text='Please pronounce the following word 2 times:\n* ' +
-                       lessons.get_by_id(self.lesson_id).vocab[self.page_idx])
+                       self.vocab[self.page_idx])
 
 
 class PronunciationResponsePost(GhostPost, BackSupportPost):
     def __init__(self, lesson_id, word_num, results):
-        self.vocab = lessons.get_by_id(lesson_id).vocab
+        self.vocab = ast.literal_eval(Lessons.get_by_id(lesson_id).vocab)
         assert self.vocab is not None
 
         super().__init__()

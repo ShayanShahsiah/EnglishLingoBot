@@ -4,7 +4,7 @@ from telegram import Bot, Update, Message, CallbackQuery
 import ui
 from auth_token import token
 from io import BytesIO
-# from recognition import recognition
+from recognition import recognition
 
 import logging
 import subprocess
@@ -87,8 +87,8 @@ class LingoBot:
                                 reply_markup=post.get_markup(),
                                 parse_mode=post.parse_mode)
                 else:
-                    assert content.file_dir is not None
-                    with open(content.file_dir, 'rb') as f:
+                    assert content.file is not None
+                    with open(content.file, 'rb') as f:
                         bot.send_voice(voice=f,
                                     caption=content.text,
                                     chat_id=update.effective_chat.id,
@@ -112,7 +112,6 @@ class LingoBot:
     def _on_command_start(self, update: Update, context: CallbackContext):
         self.main_post = ui.HomePost()
         self._post(update, context, self.main_post)
-        print('dyh!')
 
     @log()
     def _on_callback_query(self, update: Update, context: CallbackContext):
@@ -153,6 +152,7 @@ class LingoBot:
             lesson_id = self.main_post.lesson_id
             new_post = ui.NarrationPost(lesson_id)
             query_answer = "Please be patient.."
+
         elif callback_data == ui.Callback.PRONUNCIATION_QUIZ:
             if isinstance(self.main_post, ui.PronunciationQuizPost):
                 new_post = self.main_post
