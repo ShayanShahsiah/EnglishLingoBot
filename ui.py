@@ -77,17 +77,16 @@ class Post(ABC):
             globals.history.make_navigational_post(self.owner_id)
             globals.history.add_navigational_post(self, self.owner_id)
         if self.add_to_removal_stack:
-            # normally this post would be right after update, 
-            # but if multiple posts are sent at once, it can be after that
-            # try to add until successful
-            message_id = self._message_id + 1
-            while True:
-                if globals.history.add_to_removal_stack(self.chat_id, message_id, self.owner_id):
-                    break
-                message_id += 1
+            # add to-be message(AKA this post) to removal stack(offset 1)
+            globals.history.add_to_removal_stack_lite(self.owner_id, self.chat_id, self._message_id, 1)
+            
         
     @abstractmethod
     def get_content(self) -> Content:
+        """
+        Method MUST return the SAME copy of the Content object each time
+        Be sure to initiate any randomness in the __init__ function of the class, before returning it from here
+        """
         pass
     @abstractmethod
     def get_markup(self) -> IKMarkup:
@@ -193,6 +192,7 @@ class GhostPost(Post):
         self.add_to_navigational_stack = False
         # Does affect cleanup stack(if specified in self.add_to_removal_list)
         self.add_to_removal_stack = True
+        self.edit = False
         self._update_history()
     def get_markup(self) -> IKMarkup:
         return IKMarkup([[IKButton('بستن', callback_data=Callback.MESSAGE_CLEANUP)]])
@@ -202,10 +202,10 @@ class PronunciationPost(GhostPost):
         super().__init__(update)
         self.word = word
         self.vocab = globals.lessons.get_by_id(lesson_id).vocab
-        # print(self.word, self.vocab)
         assert self.vocab is not None
-        self.edit = False
-    def get_content(self) -> Content:
+        # print(self.word, self.vocab)
+        self.getSynthesis()
+    def getSynthesis(self):
         # Finding the original word without endings(ing, ed, etc.)
         original_word = None
         for vocab_word in self.vocab:
@@ -215,24 +215,26 @@ class PronunciationPost(GhostPost):
         assert original_word is not None
         translation = globals.defs.translate(original_word)
 
-        text = '<b>{}</b>\n{}'.format(original_word, '\n'.join(translation))
+        self.text = '<b>{}</b>\n{}'.format(original_word, '\n'.join(translation))
 
-        data=Synthesis(f'{original_word}\n{original_word}', speed=80)
-        
-        return Content(file=data, text=text, type=Content.Type.VOICE)
+        self.data=Synthesis(f'{original_word}\n{original_word}', speed=80)
+    def get_content(self) -> Content:
+        return Content(file=self.data, text=self.text, type=Content.Type.VOICE)
     
 
 class NarrationPost(GhostPost):
     def __init__(self, update: Update, lesson_id):
         super().__init__(update)
         self.lesson_id = lesson_id
-        self.edit = False
-    def get_content(self) -> Content:
+        self.getSynthesis()
+    def getSynthesis(self):
         lesson = globals.lessons.get_by_id(self.lesson_id)
         speed = 100
         if lesson.grade <= 3: 
             speed = 85
-        return Content(file=Synthesis(lesson.text, 0, speed), type=Content.Type.VOICE)
+        self.data = Synthesis(lesson.text, 0, speed)
+    def get_content(self) -> Content:
+        return Content(file=self.data, type=Content.Type.VOICE)
 
 class PageContainerPost(Post):
     """

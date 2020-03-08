@@ -82,6 +82,7 @@ class HistoryHandler():
         self._navigational_post: Dict[str, navigational_post_handler] = dict()
         # posts that are flagged as "to be removed"
         self._removal_messages: Dict[str, List[List[int, int]]] = dict()
+        self._latest_message_id: Dict[str, int] = dict()
         # self.load_from_db()
     def load_from_db(self):
         raise NotImplementedError
@@ -97,36 +98,42 @@ class HistoryHandler():
         for owner_id in self._navigational_post:
             if not self._navigational_post[owner_id]:
                 del self._navigational_post[owner_id]
-    def add_to_removal_stack_short(self, message: Message, owner: Update) -> navigational_post_handler:
+    def add_to_removal_stack(self, owner: Update, offset = 0) -> navigational_post_handler:
         """
-        add a post to removal stack. The posts will remain here until clear_removal_stack is called
-        * shorter version
+        add message at offset from current message in chat to removal stack
+        if the message is already in removal stack, add the message after it to removal stack
         """
-        #copy since objects are passed by ref
         owner_id = owner._effective_user.id
-        data = [message.chat_id, message.message_id]
+        if owner_id in self._latest_message_id:
+            if self._latest_message_id[owner_id] < owner._effective_message.message_id:
+                self._latest_message_id[owner_id] = owner._effective_message.message_id
+        else:
+            self._latest_message_id[owner_id] = owner._effective_message.message_id
+        print(str(self._latest_message_id[owner_id]) + " is latest")
+        data = [owner._effective_chat.id, self._latest_message_id[owner_id] + offset]
         if owner_id in self._removal_messages:
-            if data in self._removal_messages[owner_id]: 
-                #already in removal stack, use next message_id
-                return False
+            assert data not in self._removal_messages[owner_id], "already in removal stack, change offset"
             self._removal_messages[owner_id].append(data)
         else:
             self._removal_messages[owner_id] = [data]
-        return True
-    def add_to_removal_stack(self, chat_id: int, message_id: int, owner_id: int) -> navigational_post_handler:
+        self._latest_message_id[owner_id] += offset
+    def add_to_removal_stack_lite(self, owner_id: int, chat_id: int, message_id: int, offset = 0):
         """
-        add a post to removal stack. The posts will remain here until clear_removal_stack is called
-        * light version
+        lite version with need for minimum arguments
         """
-        data = [chat_id, message_id]
+        if owner_id in self._latest_message_id:
+            if self._latest_message_id[owner_id] < message_id:
+                self._latest_message_id[owner_id] = message_id
+        else:
+            self._latest_message_id[owner_id] = message_id
+        print(str(self._latest_message_id[owner_id]) + " is latest")
+        data = [chat_id, self._latest_message_id[owner_id] + offset]
         if owner_id in self._removal_messages:
-            if data in self._removal_messages[owner_id]: 
-                #already in removal stack, use next message_id
-                return False
+            assert data not in self._removal_messages[owner_id], "already in removal stack, change offset"
             self._removal_messages[owner_id].append(data)
         else:
             self._removal_messages[owner_id] = [data]
-        return True
+        self._latest_message_id[owner_id] += offset
     def clear_removal_stack(self, bot: Bot, owner: Update, removal_type: str = None):
         """
         remove all posts in removal stack
@@ -134,6 +141,9 @@ class HistoryHandler():
         requires a bot object used to remove the messages
         """
         owner_id = owner._effective_user.id
+        if owner_id in self._latest_message_id:
+            if self._latest_message_id[owner_id] < owner._effective_message.message_id:
+                self._latest_message_id[owner_id] = owner._effective_message.message_id
         if owner_id in self._removal_messages:
             for message_list in self._removal_messages[owner_id]:
                 bot.deleteMessage(message_list[0], message_list[1])
@@ -173,7 +183,7 @@ class HistoryHandler():
             res += f"\nOwner: {owner_id} \nData: {self._navigational_post[owner_id]}"
         res += "\nRemoval Posts\n"
         for removal in self._removal_messages:
-            res += str(removal) + '\n'
+            res += str(removal) + ' : ' + str(self._removal_messages[removal]) + '\n'
         return res
 if __name__ == "__main__":
     pass

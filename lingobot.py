@@ -96,6 +96,9 @@ class LingoBot:
                                     chat_id=update.effective_chat.id,
                                     reply_markup=post.get_markup(),
                                     parse_mode=post.parse_mode)
+            print("Message sent:")
+            print(message.chat_id)
+            print(message.message_id)
 
     def _add_handlers(self):
         self._dispatcher.add_handler(
@@ -232,7 +235,7 @@ class LingoBot:
         if msg[0] == '/':
             #remove previous clutter
             # These clutter the screen, add them to removal stack
-            globals.history.add_to_removal_stack_short(update.message, update)
+            globals.history.add_to_removal_stack(update)
             self._post(update, context, ui.PronunciationPost(update, msg[1:], self._lesson_id))
         else:
             self.main_post = ui.UnimplementedResponsePost(update)
