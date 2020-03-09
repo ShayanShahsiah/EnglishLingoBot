@@ -1,5 +1,5 @@
 from typing import List, Optional, Union, Dict
-from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as IKButton, Update, Bot, Message
+from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as IKButton, Update, Bot, Message, error
 from copy import deepcopy
 import ui_lib
 
@@ -37,15 +37,20 @@ class NavigationalPostHandler():
             return None
         del self._post_stack[-1]
         return self._post_stack[-1]
-
-    def newest(self):
+    def newest(self, return_copy = True):
+        """
+        return (optionally copy or reference to) newest post handler
+        """
         if self._post_stack:
-            return self._post_stack[-1]
+            if return_copy:
+                return deepcopy(self._post_stack[-1])
+            else:
+                return self._post_stack[-1]
         return None
 
     def get(self, index):
         """
-        deletes proceeding
+        get element at index, and delete proceeding
         """
         if index >= len(self._post_stack) or index <= -(len(self._post_stack)):
             raise IndexError
@@ -56,7 +61,7 @@ class NavigationalPostHandler():
         """
         get the first instance of type in stack
         get_first_not specifies if it should get first that's NOT type
-        deletes proceeding stuff        
+        deletes proceeding stuff
         """
         for i in reversed(range(len(self._post_stack))):
             if get_first_not:
@@ -109,7 +114,6 @@ class HistoryHandler():
         cleanup empty lists, and possibly superfluous data
         run this periodically
         """
-        cleaned = dict()
         for owner_id in self._navigational_post:
             if not self._navigational_post[owner_id]:
                 del self._navigational_post[owner_id]
@@ -117,7 +121,7 @@ class HistoryHandler():
     def add_to_removal_stack(self, owner: Update, offset=0) -> NavigationalPostHandler:
         """
         add message at offset from current message in chat to removal stack
-        if the message is already in removal stack, add the message after it to removal stack
+        if the message is already in removal stack, assert and don't add to removal stack
         """
         owner_id = owner._effective_user.id
         if owner_id in self._latest_message_id:
@@ -138,13 +142,14 @@ class HistoryHandler():
     def add_to_removal_stack_lite(self, owner_id: int, chat_id: int, message_id: int, offset=0):
         """
         lite version with need for minimum arguments
+        use when Update object is not present
         """
         if owner_id in self._latest_message_id:
             if self._latest_message_id[owner_id] < message_id:
                 self._latest_message_id[owner_id] = message_id
         else:
             self._latest_message_id[owner_id] = message_id
-        print(str(self._latest_message_id[owner_id]) + " is latest")
+        # print(str(self._latest_message_id[owner_id]) + " is latest")
         data = [chat_id, self._latest_message_id[owner_id] + offset]
         if owner_id in self._removal_messages:
             assert data not in self._removal_messages[owner_id], "already in removal stack, change offset"
@@ -155,7 +160,7 @@ class HistoryHandler():
 
     def clear_removal_stack(self, bot: Bot, owner: Update, removal_type: str = None):
         """
-        remove all posts in removal stack
+        deletes all posts in chat that are in removal stack
         optional type specifier to only remove that type: NOT IMPLEMENTED YET
         requires a bot object used to remove the messages
         """
@@ -165,29 +170,35 @@ class HistoryHandler():
                 self._latest_message_id[owner_id] = owner._effective_message.message_id
         if owner_id in self._removal_messages:
             for message_list in self._removal_messages[owner_id]:
-                bot.deleteMessage(message_list[0], message_list[1])
+                try:
+                    bot.deleteMessage(message_list[0], message_list[1])
+                except error.BadRequest:
+                    print("Warning, messages were not sent? removing from removal list")
+                    break
             del self._removal_messages[owner_id]
 
     def make_navigational_post(self, owner_id: int) -> NavigationalPostHandler:
         """
-        creates a navigational_post for owner_id: int: ID of user
+        creates a navigational_post for owner_id: int: ID of user: owner._effective_user.id
         if it exists, ignores it
         """
         if owner_id not in self._navigational_post:
             self._navigational_post[owner_id] = NavigationalPostHandler()
-
-    def add_navigational_post(self, post: 'ui_lib.Post', owner_id: int):
-        # copy since objects are passed by ref
+    def add_navigational_post(self, post: 'Post', owner_id: int):
+        """
+        add post to navigation stack, owner_id is owner._effective_user.id
+        """
+        #copy since objects are passed by ref
         copied = deepcopy(post)
         self._navigational_post[owner_id].append(copied)
 
     def get_navigational_post(self, owner_id: int) -> NavigationalPostHandler:
         """
         parameters:
-            owner string specifies who the post belongs to, use something consistent like update.callback_query.from_user['id']
+            owner string specifies who the post belongs to, use something consistent and unique like owner._effective_user.id
         return:
             list of navigational_post_handlers for owner.
-            creates a list if it doesn't exist already
+            returns None if it doesn't exist
         """
         if not owner_id in self._navigational_post:
             return None
