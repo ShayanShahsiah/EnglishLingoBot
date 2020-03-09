@@ -46,16 +46,12 @@ class LingoBot:
         self._updater = Updater(token=token, use_context=True)
         self._dispatcher = self._updater.dispatcher
         self._add_handlers()
-        #TODO: put in database:
-        self._lesson_id: int
-        self.main_post: Post
-        ##
-    @log()
+    # @log()
     def run(self):
         self._updater.start_polling()
         self._updater.idle()
 
-    @log()
+    # @log()
     def _post(self, update: Update, context: CallbackContext, post: Post, edit=True):
         
         editable = update.callback_query is not None
@@ -96,9 +92,9 @@ class LingoBot:
                                     chat_id=update.effective_chat.id,
                                     reply_markup=post.get_markup(),
                                     parse_mode=post.parse_mode)
-            print("Message sent:")
-            print(message.chat_id)
-            print(message.message_id)
+            # print("Message sent:")
+            # print(message.chat_id)
+            # print(message.message_id)
 
     def _add_handlers(self):
         self._dispatcher.add_handler(
@@ -113,94 +109,88 @@ class LingoBot:
         self._dispatcher.add_handler(
             MessageHandler(Filters.text, self._on_message))
 
-    @log()
+    # @log()
     def _on_command_start(self, update: Update, context: CallbackContext):
         #clear history for user, incase start is pressed again:
         globals.history.clear_navigational_post(update._effective_user.id)
-        self.main_post = ui.HomePost(update)
-        self._post(update, context, self.main_post)
+        self._post(update, context, ui.HomePost(update))
 
     @log()
     def _on_callback_query(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data: str = query.data
+        # get a copy of current post in chat for user 
+        current_post = globals.history.get_navigational_post(update._effective_user.id).newest().post
         new_post: Post = None
         query_answer: str = ""
-        edit = False
         #clear clutter if there is any
         globals.history.clear_removal_stack(context.bot, update)
         if callback_data == ui.Callback.BACK:
-            assert isinstance(self.main_post, ui.BackSupportPost) or isinstance(self.main_post, ui.PageContainerPost)
-            self.main_post = self.main_post.go_back()
-            new_post = self.main_post
+            assert isinstance(current_post, ui.BackSupportPost) or isinstance(current_post, ui.PageContainerPost)
+            new_post = current_post.go_back()
 
         elif callback_data == ui.Callback.HOME:
-            self.main_post = ui.HomePost(update)
-            new_post = self.main_post
+            new_post = ui.HomePost(update)
 
         elif callback_data == ui.Callback.PLACEMENT_TEST:
-            self.main_post = ui.UnimplementedResponsePost(update)
-            new_post = self.main_post
+            assert isinstance(current_post, ui.HomePost)
+            new_post = ui.UnimplementedResponsePost(update)
 
         elif callback_data == ui.Callback.REVIEW_WORDS:
-            self.main_post = ui.UnimplementedResponsePost(update)
-            new_post = self.main_post
+            assert isinstance(current_post, ui.HomePost)
+            new_post = ui.UnimplementedResponsePost(update)
 
         elif callback_data == ui.Callback.CHOOSE_LESSON_POST:
-            self.main_post = ui.ChooseLessonPost(update)
-            new_post = self.main_post
+            assert isinstance(current_post, ui.HomePost)
+            new_post = ui.ChooseLessonPost(update)
 
         elif callback_data.startswith(ui.Callback.BASE_LESSON_STRING):
+            assert isinstance(current_post, ui.ChooseLessonPost)
             lesson_id = int(
                 callback_data[len(ui.Callback.BASE_LESSON_STRING):])
-            self._lesson_id = lesson_id
-            self.main_post = ui.LessonPost(update, lesson_id)
-            new_post = self.main_post
+            new_post = ui.LessonPost(update, lesson_id)
 
         elif callback_data == ui.Callback.NARRATION:
-            assert isinstance(self.main_post, ui.LessonPost)
+            assert isinstance(current_post, ui.LessonPost)
             #remove previous clutter
-            lesson_id = self.main_post.lesson_id
+            lesson_id = current_post.lesson_id
             new_post = ui.NarrationPost(update, lesson_id)
             query_answer = "Please be patient.."
         elif callback_data == ui.Callback.PRONUNCIATION_QUIZ:
-            if isinstance(self.main_post, ui.PronunciationQuizPost):
-                new_post = self.main_post
+            if isinstance(current_post, ui.PronunciationQuizPost):
+                new_post = current_post
             else:
-                assert isinstance(self.main_post, ui.LessonPost)
-                lesson_id = self.main_post.lesson_id
-                self.main_post = ui.PronunciationQuizPost(update, lesson_id)
-                new_post = self.main_post
+                assert isinstance(current_post, ui.LessonPost)
+                lesson_id = current_post.lesson_id
+                new_post = ui.PronunciationQuizPost(update, lesson_id)
 
         elif callback_data == ui.Callback.CLOZE_TEST:
-            self.main_post = ui.UnimplementedResponsePost(update)
-            new_post = self.main_post
+            new_post = ui.UnimplementedResponsePost(update)
 
         elif callback_data == ui.Callback.NEXT_QUIZ_QUESTION:
-            assert isinstance(self.main_post, ui.PronunciationQuizPost), print(
-                self.main_post)
-            self.main_post.go_next()
-            new_post = self.main_post
+            assert isinstance(current_post, ui.PronunciationQuizPost), print(
+                current_post)
+            new_post = current_post.go_next()
 
         elif callback_data == ui.Callback.NEXT:
-            assert isinstance(self.main_post, ui.PageContainerPost)
-            new_post = self.main_post.get_next_post()
+            assert isinstance(current_post, ui.PageContainerPost)
+            new_post = current_post.get_next_post()
 
         elif callback_data == ui.Callback.PREVIOUS:
-            assert isinstance(self.main_post, ui.PageContainerPost)
-            new_post = self.main_post.get_previous_post()
+            assert isinstance(current_post, ui.PageContainerPost)
+            new_post = current_post.get_previous_post()
         elif callback_data == ui.Callback.MESSAGE_CLEANUP:
+            # assert isinstance(current_post, ui.GhostPost)
             globals.history.clear_removal_stack(context.bot, update)
         else:
             print(f'No callback found for: {callback_data}')
-            self.main_post = ui.UnimplementedResponsePost(update, 
+            new_post = ui.UnimplementedResponsePost(update, 
                 'Sorry! An internal error occurred!')
-            new_post = self.main_post
 
         query.answer(query_answer)
         if new_post:
             self._post(update, context, new_post, edit=new_post.edit)
-        # This doesn't work with the new history system. instead ...
+        # This doesn't work with the new history system. instead ... use the edit variable in Post class
         # print(f"+==============={new_post.type} :: {self.main_post.type}===============+")
         # if new_post.type == self.main_post.type:
         #     self._post(update, context, new_post)
@@ -210,9 +200,11 @@ class LingoBot:
     @log()
     def _on_voice_message(self, update: Update, context: CallbackContext):
         assert isinstance(self.main_post, ui.PronunciationQuizPost)
-        word_num = self.main_post.page_idx
+        current_post = globals.history.get_navigational_post(update._effective_user.id).newest().post
+        word_num = current_post.page_idx
 
         message: Message = update.message
+        
         message.voice.get_file().download('Audio/voice.ogg')
         output = subprocess.check_output(
             ['bash', '-c', 'ffmpeg -i Audio/voice.ogg -acodec pcm_s16le -ac 1 -ar 16000 -y Audio/out.wav'])
@@ -220,12 +212,12 @@ class LingoBot:
 
         result = '<b><i>incorrect</i></b>'
         for word in output:
-            if word.lower() == ui.lessons.get_by_id(self._lesson_id).vocab[word_num].lower().strip():
+            if word.lower() == ui.lessons.get_by_id(current_post.lesson_id).vocab[word_num].lower().strip():
                 result = '<b><i>correct</i></b>'
 
         msg = f'processed:\n{output}\n\nresult: {result}'
         new_post = ui.PronunciationResponsePost(update, 
-            self._lesson_id, word_num, msg)
+            current_post.lesson_id, word_num, msg)
 
         self._post(update, context, new_post)
     @log()
@@ -233,13 +225,14 @@ class LingoBot:
         globals.history.clear_removal_stack(context.bot, update)
         msg = update.message.text
         if msg[0] == '/':
+            current_post = globals.history.get_navigational_post(update._effective_user.id).newest().post
             #remove previous clutter
             # These clutter the screen, add them to removal stack
             globals.history.add_to_removal_stack(update)
-            self._post(update, context, ui.PronunciationPost(update, msg[1:], self._lesson_id))
+            assert isinstance(current_post, ui.LessonPost)
+            self._post(update, context, ui.PronunciationPost(update, msg[1:], current_post.lesson_id))
         else:
-            self.main_post = ui.UnimplementedResponsePost(update)
-            self._post(update, context, self.main_post)
+            self._post(update, context, ui.UnimplementedResponsePost(update))
 
 
 if __name__ == '__main__':
