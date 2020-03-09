@@ -1,29 +1,29 @@
 from typing import List, Optional, Union, Dict
 from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as IKButton, Update, Bot, Message, error
 from copy import deepcopy
-
-
-class post_handler():
-    def __init__(self, post: 'Post'):
-        self.post: 'Post' = post
+import ui_lib
+class PostHandler():
+    def __init__(self, post: 'ui_lib.Post'):
+        self.post: 'ui_lib.Post' = post
     def __repr__(self):
         return f"\n\tPost Content: {self.post.get_content()}\n\tPost Markup: \n\t\t{str(self.post.get_markup())[:100] + '...'}"
-class navigational_post_handler():
+
+class NavigationalPostHandler():
     def __init__(self):
-        self._post_stack: List[post_handler] = list()
+        self._post_stack: List[PostHandler] = list()
         self._stack_index: int = 0
     def pop(self):
         if self._post_stack:
             self._post_stack.pop()
-    def append(self, post: 'Post'):
+    def append(self, post):
         """
         appends if it doesn't exist already
         """
         if not post in self._post_stack:
-            self._post_stack.append(post_handler(post))
+            self._post_stack.append(PostHandler(post))
     def previous(self):
         """
-        returns previos, and pops current
+        returns previous, and pops current
         """
         if len(self._post_stack) <= 1:
             return None
@@ -64,7 +64,7 @@ class navigational_post_handler():
         
 class HistoryHandler():
     def __init__(self):
-        self._navigational_post: Dict[int, navigational_post_handler] = dict()
+        self._navigational_post: Dict[int, NavigationalPostHandler] = dict()
         # posts that are flagged as "to be removed"
         self._removal_messages: Dict[int, List[List[int]]] = dict()
         self._latest_message_id: Dict[int, int] = dict()
@@ -143,19 +143,19 @@ class HistoryHandler():
         if it exists, ignores it
         """
         if owner_id not in self._navigational_post:
-            self._navigational_post[owner_id] = navigational_post_handler()
+            self._navigational_post[owner_id] = NavigationalPostHandler()
     def add_navigational_post(self, post: 'Post', owner_id: int):
         """
         add post to navigation stack, owner_id is owner._effective_user.id
         """
         #copy since objects are passed by ref
         self._navigational_post[owner_id].append(post)
-    def get_navigational_post(self, owner_id: int) -> navigational_post_handler:
+    def get_navigational_post(self, owner_id: int) -> NavigationalPostHandler:
         """
         parameters:
             owner string specifies who the post belongs to, use something consistent and unique like owner._effective_user.id
         return:
-            list of navigational_post_handlers for owner.
+            list of NavigationalPostHandlers for owner.
             returns None if it doesn't exist
         """
         if not owner_id in self._navigational_post:
