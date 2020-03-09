@@ -9,7 +9,7 @@ from sqlalchemy import String, Integer, Column, create_engine, ForeignKey
 from sqlalchemy.orm import sessionmaker, Session, Query, relationship
 from typing import Type
 
-engine = create_engine('sqlite:///test.db', echo=False)
+engine = create_engine('sqlite:///Data/lessons.db', echo=False)
 
 Base: Type = declarative_base()
 
@@ -110,7 +110,7 @@ def initialize():
 
 
 if __name__ == "__main__":
-    # initialize()
+    #initialize()
     # one = Lesson.get_by_id(1121+1)
     # print(one)
     all = Lessons.get_all(min_grade=10)
