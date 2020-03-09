@@ -1,20 +1,21 @@
+from time import gmtime, strftime, perf_counter as PF
+import functools
+from io import BytesIO
+import ast
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, Filters, CallbackQueryHandler
-# TODO: possibly should use inline_query instead of callback_query
 from telegram import Bot, Update, Message, CallbackQuery
 import ui
+from lessons import Lessons
 from auth_token import token
-from io import BytesIO
-from multiprocessing import Process
 # from recognition import recognition
+from multiprocessing import Process
 import logging
 import subprocess
 from ui import Content, Post
-import globals
-#initial global variables, DO THIS ONLY ONCE
-globals.init()
+import global_vars
+# initial global variables, DO THIS ONLY ONCE
+global_vars.init()
 # temporary log decoration
-import functools
-from time import gmtime, strftime, perf_counter as PF
 def log(verbose=True):
     def logger(function):
         @functools.wraps(function)
@@ -31,7 +32,7 @@ def log(verbose=True):
                 start = PF()
                 value = function(*args, **kwargs)
                 end = PF()
-                print(globals.history)
+                print(global_vars.history)
                 print(
                     f"Exiting \"{logText}\"\n\tTook {(end-start):.4f} seconds")
             else:
@@ -116,19 +117,19 @@ class LingoBot:
     @log()
     def _on_command_start(self, update: Update, context: CallbackContext):
         #clear history for user, incase start is pressed again:
-        globals.history.clear_navigational_post(update._effective_user.id)
+        global_vars.history.clear_navigational_post(update._effective_user.id)
         self._post(update, context, ui.HomePost(update))
 
     @log()
     def _on_callback_query(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data: str = query.data
-        # get a copy of current post in chat for user 
-        current_post = globals.history.get_navigational_post(update._effective_user.id).newest().post
+        # get a pointer to current post in chat for user 
+        current_post = global_vars.history.get_navigational_post(update._effective_user.id).newest().post
         new_post: Post = None
         query_answer: str = ""
         #clear clutter if there is any
-        globals.history.clear_removal_stack(context.bot, update)
+        global_vars.history.clear_removal_stack(context.bot, update)
         if callback_data == ui.Callback.BACK:
             assert isinstance(current_post, ui.BackSupportPost) or isinstance(current_post, ui.PageContainerPost)
             new_post = current_post.go_back()
@@ -174,7 +175,8 @@ class LingoBot:
         elif callback_data == ui.Callback.NEXT_QUIZ_QUESTION:
             assert isinstance(current_post, ui.PronunciationQuizPost), print(
                 current_post)
-            new_post = current_post.go_next()
+            current_post.next_page()
+            new_post = current_post
 
         elif callback_data == ui.Callback.NEXT:
             assert isinstance(current_post, ui.PageContainerPost)
@@ -187,7 +189,7 @@ class LingoBot:
             new_post = current_post
         elif callback_data == ui.Callback.MESSAGE_CLEANUP:
             # assert isinstance(current_post, ui.GhostPost)
-            globals.history.clear_removal_stack(context.bot, update)
+            global_vars.history.clear_removal_stack(context.bot, update)
         else:
             print(f'No callback found for: {callback_data}')
             new_post = ui.UnimplementedResponsePost(update, 
@@ -205,7 +207,7 @@ class LingoBot:
 
     @log()
     def _on_voice_message(self, update: Update, context: CallbackContext):
-        current_post = globals.history.get_navigational_post(update._effective_user.id).newest().post
+        current_post = global_vars.history.get_navigational_post(update._effective_user.id).newest().post
         assert isinstance(current_post, ui.PronunciationQuizPost)
         word_num = current_post.page_idx
 
@@ -228,13 +230,13 @@ class LingoBot:
         self._post(update, context, new_post)
     @log()
     def _on_message(self, update: Update, context: CallbackContext):
-        globals.history.clear_removal_stack(context.bot, update)
+        global_vars.history.clear_removal_stack(context.bot, update)
         msg = update.message.text
         if msg[0] == '/':
-            current_post = globals.history.get_navigational_post(update._effective_user.id).newest().post
             #remove previous clutter
             # These clutter the screen, add them to removal stack
-            globals.history.add_to_removal_stack(update)
+            global_vars.history.add_to_removal_stack(update)
+            current_post = global_vars.history.get_navigational_post(update._effective_user.id).newest().post
             assert isinstance(current_post, ui.LessonPost)
             self._post(update, context, ui.PronunciationPost(update, msg[1:], current_post.lesson_id))
         else:
