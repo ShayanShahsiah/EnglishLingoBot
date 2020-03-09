@@ -47,6 +47,10 @@ class Lesson(Base):
 
 class Lessons:
     @staticmethod
+    def get_count():
+        return session.query(Lesson).count()
+
+    @staticmethod
     def get_all(min_grade=0, max_grade=12, count: Optional[int] = None, shuffle=False) -> 'List[Lesson]':
 
         query: Query = session.query(Lesson).filter(
@@ -74,7 +78,6 @@ class Lessons:
         res = query.one()
         assert isinstance(res, Lesson)
         return res
-
 
 def initialize():
     """

@@ -1,17 +1,22 @@
+from time import gmtime, strftime, perf_counter as PF
+import functools
+from io import BytesIO
+import ast
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, Filters, CallbackQueryHandler
-# TODO: possibly should use inline_query instead of callback_query
 from telegram import Bot, Update, Message, CallbackQuery
 import ui
+from lessons import Lessons
 from auth_token import token
-from io import BytesIO
 from recognition import recognition
 
+from multiprocessing import Process
 import logging
 import subprocess
-
+from ui import Content, Post
+import global_vars
+# initial global variables, DO THIS ONLY ONCE
+global_vars.init()
 # temporary log decoration
-import functools
-from time import gmtime, strftime, perf_counter as PF
 
 
 def log(verbose=True):
@@ -30,6 +35,7 @@ def log(verbose=True):
                 start = PF()
                 value = function(*args, **kwargs)
                 end = PF()
+                print(global_vars.history)
                 print(
                     f"Exiting \"{logText}\"\n\tTook {(end-start):.4f} seconds")
             else:
@@ -45,23 +51,25 @@ class LingoBot:
         self._updater = Updater(token=token, use_context=True)
         self._dispatcher = self._updater.dispatcher
         self._add_handlers()
-        #TODO: put in database:
+        # TODO: put in database:
         self._lesson_id: int
-        self.main_post: ui.Post
+        self.main_post: Post
         ##
+
     @log()
     def run(self):
         self._updater.start_polling()
         self._updater.idle()
 
     @log()
-    def _post(self, update: Update, context: CallbackContext, post: ui.Post, edit=True):
+    def _post(self, update: Update, context: CallbackContext, post: Post, edit=True):
+
         editable = update.callback_query is not None
         if edit and editable:
             # Edit the previous message instead of sending a new one.
             content = post.get_content()
             message = update.callback_query.message
-            if content.type == ui.Content.Type.TEXT:
+            if content.type == Content.Type.TEXT:
                 message.edit_text(content.text,
                                   reply_markup=post.get_markup(),
                                   parse_mode=post.parse_mode)
@@ -73,32 +81,35 @@ class LingoBot:
             # Don't edit. Send a new message.
             content = post.get_content()
             bot: Bot = context.bot
-            if content.type == ui.Content.Type.TEXT:
-                bot.send_message(text=content.text,
-                                 chat_id=update.effective_chat.id,
-                                 reply_markup=post.get_markup(),
-                                 parse_mode=post.parse_mode)
-            elif content.type == ui.Content.Type.VOICE:
+            if content.type == Content.Type.TEXT:
+                message = bot.send_message(text=content.text,
+                                           chat_id=update.effective_chat.id,
+                                           reply_markup=post.get_markup(),
+                                           parse_mode=post.parse_mode)
+            elif content.type == Content.Type.VOICE:
                 if type(content.file) is bytes:
                     file = BytesIO(content.file)
-                    bot.send_voice(voice=file,
-                                caption=content.text,
-                                chat_id=update.effective_chat.id,
-                                reply_markup=post.get_markup(),
-                                parse_mode=post.parse_mode)
+                    message = bot.send_voice(voice=file,
+                                             caption=content.text,
+                                             chat_id=update.effective_chat.id,
+                                             reply_markup=post.get_markup(),
+                                             parse_mode=post.parse_mode)
                 else:
                     assert content.file is not None
                     with open(content.file, 'rb') as f:
-                        bot.send_voice(voice=f,
-                                    caption=content.text,
-                                    chat_id=update.effective_chat.id,
-                                    reply_markup=post.get_markup(),
-                                    parse_mode=post.parse_mode)
+                        message = bot.send_voice(voice=f,
+                                                 caption=content.text,
+                                                 chat_id=update.effective_chat.id,
+                                                 reply_markup=post.get_markup(),
+                                                 parse_mode=post.parse_mode)
+            print("Message sent:")
+            print(message.chat_id)
+            print(message.message_id)
 
     def _add_handlers(self):
         self._dispatcher.add_handler(
             CommandHandler('start', self._on_command_start))
-            
+
         self._dispatcher.add_handler(
             CallbackQueryHandler(self._on_callback_query))
 
@@ -110,47 +121,54 @@ class LingoBot:
 
     @log()
     def _on_command_start(self, update: Update, context: CallbackContext):
-        self.main_post = ui.HomePost()
+        # clear history for user, incase start is pressed again:
+        global_vars.history.clear_navigational_post(update._effective_user.id)
+        self.main_post = ui.HomePost(update)
         self._post(update, context, self.main_post)
 
     @log()
     def _on_callback_query(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data: str = query.data
-        new_post: ui.Post
+        new_post: Post = None
         query_answer: str = ""
+        edit = False
+        # clear clutter if there is any
+        global_vars.history.clear_removal_stack(context.bot, update)
         if callback_data == ui.Callback.BACK:
-            assert isinstance(self.main_post, ui.BackSupportPost)
-            self.main_post = self.main_post.get_previous_post()
+            assert isinstance(self.main_post, ui.BackSupportPost) or isinstance(
+                self.main_post, ui.PageContainerPost)
+            self.main_post = self.main_post.go_back()
             new_post = self.main_post
 
         elif callback_data == ui.Callback.HOME:
-            self.main_post = ui.HomePost()
+            self.main_post = ui.HomePost(update)
             new_post = self.main_post
 
         elif callback_data == ui.Callback.PLACEMENT_TEST:
-            self.main_post = ui.UnimplementedResponsePost()
+            self.main_post = ui.UnimplementedResponsePost(update)
             new_post = self.main_post
 
         elif callback_data == ui.Callback.REVIEW_WORDS:
-            self.main_post = ui.UnimplementedResponsePost()
+            self.main_post = ui.UnimplementedResponsePost(update)
             new_post = self.main_post
 
         elif callback_data == ui.Callback.CHOOSE_LESSON_POST:
-            self.main_post = ui.ChooseLessonPost()
+            self.main_post = ui.ChooseLessonPost(update)
             new_post = self.main_post
 
         elif callback_data.startswith(ui.Callback.BASE_LESSON_STRING):
             lesson_id = int(
                 callback_data[len(ui.Callback.BASE_LESSON_STRING):])
             self._lesson_id = lesson_id
-            self.main_post = ui.LessonPost(lesson_id)
+            self.main_post = ui.LessonPost(update, lesson_id)
             new_post = self.main_post
 
         elif callback_data == ui.Callback.NARRATION:
             assert isinstance(self.main_post, ui.LessonPost)
+            # remove previous clutter
             lesson_id = self.main_post.lesson_id
-            new_post = ui.NarrationPost(lesson_id)
+            new_post = ui.NarrationPost(update, lesson_id)
             query_answer = "Please be patient.."
 
         elif callback_data == ui.Callback.PRONUNCIATION_QUIZ:
@@ -159,40 +177,43 @@ class LingoBot:
             else:
                 assert isinstance(self.main_post, ui.LessonPost)
                 lesson_id = self.main_post.lesson_id
-                self.main_post = ui.PronunciationQuizPost(lesson_id)
+                self.main_post = ui.PronunciationQuizPost(update, lesson_id)
                 new_post = self.main_post
 
         elif callback_data == ui.Callback.CLOZE_TEST:
-            self.main_post = ui.UnimplementedResponsePost()
+            self.main_post = ui.UnimplementedResponsePost(update)
             new_post = self.main_post
 
         elif callback_data == ui.Callback.NEXT_QUIZ_QUESTION:
             assert isinstance(self.main_post, ui.PronunciationQuizPost), print(
                 self.main_post)
-            self.main_post.go_next()
+            self.main_post.get_next_post()
             new_post = self.main_post
 
         elif callback_data == ui.Callback.NEXT:
             assert isinstance(self.main_post, ui.PageContainerPost)
-            self.main_post.go_next()
-            new_post = self.main_post
+            new_post = self.main_post.get_next_post()
 
         elif callback_data == ui.Callback.PREVIOUS:
             assert isinstance(self.main_post, ui.PageContainerPost)
-            self.main_post.go_previous()
-            new_post = self.main_post
-
+            new_post = self.main_post.get_previous_post()
+        elif callback_data == ui.Callback.MESSAGE_CLEANUP:
+            global_vars.history.clear_removal_stack(context.bot, update)
         else:
             print(f'No callback found for: {callback_data}')
-            self.main_post = ui.UnimplementedResponsePost(
-                'Sorry! An internal error occurred!')
+            self.main_post = ui.UnimplementedResponsePost(update,
+                                                          'Sorry! An internal error occurred!')
             new_post = self.main_post
 
         query.answer(query_answer)
-        if new_post is self.main_post:
-            self._post(update, context, new_post)
-        else:
-            self._post(update, context, new_post, edit=False)
+        if new_post:
+            self._post(update, context, new_post, edit=new_post.edit)
+        # This doesn't work with the new history system. instead ...
+        # print(f"+==============={new_post.type} :: {self.main_post.type}===============+")
+        # if new_post.type == self.main_post.type:
+        #     self._post(update, context, new_post)
+        # else:
+        #     self._post(update, context, new_post, edit=False)
 
     @log()
     def _on_voice_message(self, update: Update, context: CallbackContext):
@@ -207,22 +228,27 @@ class LingoBot:
 
         result = '<b><i>incorrect</i></b>'
         for word in output:
-            if word.lower() == ui.lessons.get_by_id(self._lesson_id).vocab[word_num].lower().strip():
+            vocab = ast.literal_eval(Lessons.get_by_id(self._lesson_id).vocab)
+            if word.lower() == vocab[word_num].lower().strip():
                 result = '<b><i>correct</i></b>'
 
         msg = f'processed:\n{output}\n\nresult: {result}'
-        new_post = ui.PronunciationResponsePost(
-            self._lesson_id, word_num, msg)
+        new_post = ui.PronunciationResponsePost(update, self._lesson_id, word_num, msg)
 
         self._post(update, context, new_post)
 
     @log()
     def _on_message(self, update: Update, context: CallbackContext):
+        global_vars.history.clear_removal_stack(context.bot, update)
         msg = update.message.text
         if msg[0] == '/':
-            self._post(update, context, ui.PronunciationPost(msg[1:], self._lesson_id))
+            # remove previous clutter
+            # These clutter the screen, add them to removal stack
+            global_vars.history.add_to_removal_stack(update)
+            self._post(update, context, ui.PronunciationPost(
+                update, msg[1:], self._lesson_id))
         else:
-            self.main_post = ui.UnimplementedResponsePost()
+            self.main_post = ui.UnimplementedResponsePost(update)
             self._post(update, context, self.main_post)
 
 

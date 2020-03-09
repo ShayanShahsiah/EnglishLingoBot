@@ -11,11 +11,6 @@ from random import randrange
 def split_story(text: str, maxLen: int, result=list()):
     lenT = len(text)
     # look for newline
-    for i in range(1, lenT):
-        if text[i] == "\n" :
-            result.append(text[0:i])
-            split_story(text[i:lenT], maxLen, result)
-            return
     if lenT < maxLen:
         result.append(text)
     else:
@@ -37,7 +32,7 @@ def split_story(text: str, maxLen: int, result=list()):
                 return
 
                 
-def smmlGen(text, speed = 100, gender: int = 0, variant: int = 1):
+def smml_gen(text, speed = 100, gender: int = 0, variant: int = 1):
     """
     speed is percentage (100% is normal)
     gender is int, 0 not to use, 1 for male and 2 for female
@@ -57,19 +52,15 @@ def smmlGen(text, speed = 100, gender: int = 0, variant: int = 1):
         final += f'<voice variant="{variant}">'
     if text[0] == ' ':
         final += '<break strength="x-weak"/>'
-        final += text[1:]
-    elif text[0] == '\n':
-        final += '<break strength="strong"/>'
-        final += text[1:]
-    else:
-        final += text
+        text = text[1:]
+    final += text.replace('\n', '<break strength="strong"/>')
     final += "</voice>"
     final += "</prosody>"
     final += "</speak>"
     return final
 
 
-def appendMP3(sound1: bytes, sound2: bytes):
+def append_mp3(sound1: bytes, sound2: bytes):
     """
     Append mp3 formatted bytes together
     """
@@ -79,12 +70,9 @@ def appendMP3(sound1: bytes, sound2: bytes):
         return sound2
     sound1 += sound2[20:]
     return sound1
-
-
 def synthesis(text: str, option=0, speed = 100, userAgent="Mozilla/5.0 (Windows NT 6.1; rv:60.0) Gecko/20100101 Firefox/60.0"):
     """
     Usage:
-        synthesis(text to get, language option, user agent)
         options:
             0 -> Random American male/female
             1 -> United States male voice
@@ -135,7 +123,7 @@ def synthesis(text: str, option=0, speed = 100, userAgent="Mozilla/5.0 (Windows 
         if not option:
             gender = randrange(1,3)
         for subtext in texts:
-            smmldata = smmlGen(subtext, speed, gender, variant)
+            smmldata = smml_gen(subtext, speed, gender, variant)
             data = {
                 "csrfmiddlewaretoken": token,
                 "text_to_generate": smmldata,
@@ -146,13 +134,16 @@ def synthesis(text: str, option=0, speed = 100, userAgent="Mozilla/5.0 (Windows 
             page = session.post("https://spik.ai/generate/", data=data).text
             audioLink = re.search(audioLinkRe, page).group(1)
             audio = session.get("https://spik.ai" + audioLink, headers="")
-            result = appendMP3(result, audio.content)
+            result = append_mp3(result, audio.content)
         return result
 
 if __name__ == "__main__":
     text = "A Baby\nA baby has arms and legs. It has a mouth and eyes. It looks at everything.\nIt eats everything. It smiles a lot. It cries a lot. It eats a lot. It drools a lot. It pees a lot.\nIt poops a lot. It sleeps a lot. It tries to talk. It makes funny sounds. It says \"Googoo\" and \"Gaga.\" It waves its arms and legs. It doesn't do much else. It doesn't sit up. It doesn't stand up. It doesn't talk. It lies on its back. It lies on its stomach. After a year, it will do many things. It will crawl. It will stand up. It will walk. It will talk. But in the beginning, it just grows. It grows bigger and bigger."
-    # for i in texts:
-    #     print(smmlGen(i))
+    texts = []
+    split_story(text, 100, texts)
+    for i in texts:
+        # print(i)
+        print(smml_gen(i))
     # smmlGen(text)
-    with open("res.mp3", 'wb') as f: 
-        f.write(synthesis(text, 2))
+    # with open("res.mp3", 'wb') as f: 
+    #     f.write(synthesis(text, 2))
