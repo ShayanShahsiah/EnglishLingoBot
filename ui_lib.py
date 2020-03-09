@@ -32,6 +32,7 @@ class Content():
                  type: 'Type' = Type.TEXT):
 
         self.text = text
+        # TODO: Files shouldn't be saved statically, might use too much space. save to file and send over time in another process instead
         self.file = file
         self.type = type
 
@@ -141,16 +142,13 @@ class PageContainerPost(Post):
         # global_vars.history.make_navigational_post(self, self.update)
 
     def go_back(self) -> Post:
-        return global_vars.history.get_navigational_post(self.owner_id).get_first(self.type, False).post
-
-    def get_next_post(self) -> Post:
-        self.page_idx += 1
-        self._update_history()
-        return self
-
-    def get_previous_post(self) -> Post:
-        self.page_idx -= 1
         return global_vars.history.get_navigational_post(self.owner_id).previous().post
+
+    def next_page(self):
+        self.page_idx += 1
+        
+    def previous_page(self):
+        self.page_idx -= 1
 
     def get_markup(self) -> IKMarkup:
         navigation_buttons: List[IKButton] = []
