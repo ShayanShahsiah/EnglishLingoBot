@@ -1,108 +1,27 @@
-from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as IKButton, Update
-from synthesis import Synthesis
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import List, Optional, Union, Dict
-import globals
-from abc import abstractmethod
+from typing import List, Optional, Callable, Union
+import ast
+from telegram import InlineKeyboardMarkup as IKMarkup, InlineKeyboardButton as IKButton, Update
+from lessons import Lessons
+from synthesis import synthesis
+from ui_lib import Callback as LibCallback, Content, Post, BasicPost, BackSupportPost, PageContainerPost, GhostPost
+import global_vars
 DISPLAYED_LESSONS = 30
 LESSONS_PER_PAGE = 6
-
-class Callback():
-
-    BACK = 'BACK'
-
+class Callback(LibCallback):
     HOME = 'HOME'
     PLACEMENT_TEST = 'PLACEMENT_TEST'
     REVIEW_WORDS = 'REVIEW_WORDS'
-
     CHOOSE_LESSON_POST = 'CHOOSE_LESSON_POST'
     NEXT_LESSON_POST = "NEXT_LESSON_POST"
     PREV_LESSON_POST = "PREV_LESSON_POST"
-
     # The lesson index is appended to base string here:
     BASE_LESSON_STRING = 'LESSON_NUM_'
-
     NARRATION = 'NARRATION'
     PRONUNCIATION_QUIZ = 'PRONUNCIATION_QUIZ'
     CLOZE_TEST = 'CLOZE_TEST'
-
     NEXT_QUIZ_QUESTION = 'NEXT_QUIZ_QUESTION'
-
-    NEXT = 'PAGE_CONTAINER_NEXT'
-    PREVIOUS = 'PAGE_CONTAINER_PREVIOUS'
-
-    MESSAGE_CLEANUP = 'MESSAGE_CLEANUP'
-class Content():
-    """
-    Container class for the contents of a Post.
-
-    Attributes:
-        text (Optional[str]): String or Bytes to send
-        file (Optional[Union[str, bytes]]): file directory or content bytes for multimedia messages.
-        type (Content.Type): Type of content (currently TEXT, VOICE, PHOTO).
-    """
-    class Type(Enum):
-        TEXT = auto()
-        VOICE = auto()
-        PHOTO = auto()
-
-    def __init__(self, text: Optional[str] = None, file: Optional[Union[str, bytes]] = None,
-                 type: 'Type' = Type.TEXT):
-
-        self.text = text
-        # TODO: Files shouldn't be saved statically, might use too much space. save to file and send over time in another process instead
-        self.file = file
-        self.type = type
-    def __repr__(self):
-        safetext = self.text[:30].replace('\n', ' ') + '...'
-        return f"\n\t\tText: {safetext}\n\t\tfileType: {type(self.file)}\n\t\ttype: {self.type}"
-class Post(ABC):
-    """
-    Abstract base class for all posts.
-    """
-
-    def __init__(self, update: Update):
-        self.owner_id = update._effective_user.id
-        self.chat_id = update._effective_chat.id
-        #this is not the message id for this post, only current message
-        self._message_id = update._effective_message.message_id
-        self.parse_mode: str = 'html'
-        self.edit: bool = True
-        self.type: str = self.__class__.__name__
-        self.add_to_removal_stack = False
-        self.add_to_navigational_stack = True
-    def _update_history(self):
-        #append to history or removal stack
-        if self.add_to_navigational_stack:
-            globals.history.make_navigational_post(self.owner_id)
-            globals.history.add_navigational_post(self, self.owner_id)
-        if self.add_to_removal_stack:
-            # add to-be message(AKA this post) to removal stack(offset 1)
-            globals.history.add_to_removal_stack_lite(self.owner_id, self.chat_id, self._message_id, 1)
-            
-        
-    @abstractmethod
-    def get_content(self) -> Content:
-        """
-        Method MUST return the SAME copy of the Content object each time
-        Be sure to initiate any randomness in the __init__ function of the class, before returning it from here
-        """
-        pass
-    @abstractmethod
-    def get_markup(self) -> IKMarkup:
-        pass
-
-
-class BasicPost(Post):
-    """
-    Abstract base class for posts that don't support navigation to the previous post.
-    """
-    def __init__(self, update: Update):
-        super().__init__(update)
-        self._update_history()
-    
-
 class HomePost(BasicPost):
     def __init__(self, update: Update):
         super().__init__(update)
@@ -114,62 +33,47 @@ class HomePost(BasicPost):
             [IKButton('درس‌ها', callback_data=Callback.CHOOSE_LESSON_POST)],
             [IKButton('لغات ستاره‌دار', callback_data=Callback.REVIEW_WORDS)]])
 
-class BackSupportPost(Post):
-    """
-    Abstract base class for posts that support navigation to the previous post.
-    """
-    def __init__(self, update: Update):
-        super().__init__(update)
-        self._update_history()
 
-    def go_back(self) -> Post:
-        return globals.history.get_navigational_post(self.owner_id).previous().post
-
-    def get_markup(self) -> IKMarkup:
-        return IKMarkup([[IKButton('بازگشت', callback_data=Callback.BACK)]])
 class LessonPost(BackSupportPost):
     def __init__(self, update: Update, lesson_id):
         self.lesson_id = lesson_id
-        self.vocab_available = globals.lessons.get_by_id(self.lesson_id).vocab is not None
+        self.vocab = ast.literal_eval(Lessons.get_by_id(self.lesson_id).vocab)
+        self.vocab_available = self.vocab is not None
         self.text = self._slashify()
         super().__init__(update)
 
     def _slashify(self) -> str:
-        text = globals.lessons.get_by_id(self.lesson_id).text
-        #copy without sharing memory:
-        try:
-            vocab = globals.lessons.get_by_id(self.lesson_id).vocab[:]
-        except TypeError:
+        text = Lessons.get_by_id(self.lesson_id).text
+        self.vocab = ast.literal_eval(Lessons.get_by_id(self.lesson_id).vocab)
+        if self.vocab is None:
             return text
-        
         words: List[str] = text.split()
         for i in range(len(words)):
             matched = False
-            for j in range(len(vocab)):
-                if vocab[j] != '' and words[i].startswith(vocab[j]):
+            for j in range(len(self.vocab)):
+                if self.vocab[j] != '' and words[i].startswith(self.vocab[j]):
                     matched = True
-                    vocab[j] = ''
+                    self.vocab[j] = ''
                     break
             if matched:
                 words[i] = '/' + words[i]
-
         return ' '.join(words)
 
     def get_content(self) -> Content:
         text = "<b>{}</b>\n\n{}".format(
-            globals.lessons.get_by_id(self.lesson_id).name, self.text)
+            Lessons.get_by_id(self.lesson_id).name, self.text)
         if not self.vocab_available:
             text += '\n\n <i>Pronunciation quiz not available for this lesson.</i>'
-        return Content(text=text)
 
+        return Content(text=text)
     def get_markup(self) -> IKMarkup:
         buttons = [
             [IKButton('Listen to Narration', callback_data=Callback.NARRATION)]]
         if self.vocab_available:
             buttons += [[IKButton('Pronunciation Quiz',
                                   callback_data=Callback.PRONUNCIATION_QUIZ)]]
-
         return IKMarkup(buttons + super().get_markup().inline_keyboard)
+
 class UnimplementedResponsePost(BackSupportPost):
     def __init__(self, update, text="Sry don't know how to respond to that!"):
         self.text = text
@@ -178,47 +82,29 @@ class UnimplementedResponsePost(BackSupportPost):
     def get_content(self):
         return Content(text=self.text)
 
-class GhostPost(Post):
-    """
-    Abstract base class for posts that are outside the back navigation stack.
-
-    Could for example be used for a short message sent after a bigger "main" message
-    without affecting the "back button" functionality of the older message.
-
-    Messages using this class can clump up and decrease visability, so a special markup is used to remove them
-    """
-    def __init__(self, update: Update):
-        super().__init__(update)
-        # Doesn't affect the global navigation stack
-        self.add_to_navigational_stack = False
-        # Does affect cleanup stack(if specified in self.add_to_removal_list)
-        self.add_to_removal_stack = True
-        self.edit = False
-        self._update_history()
-    def get_markup(self) -> IKMarkup:
-        return IKMarkup([[IKButton('بستن', callback_data=Callback.MESSAGE_CLEANUP)]])
-
 class PronunciationPost(GhostPost):
     def __init__(self, update: Update, word: str, lesson_id):
         super().__init__(update)
         self.word = word
-        self.vocab = globals.lessons.get_by_id(lesson_id).vocab
+        self.vocab = ast.literal_eval(Lessons.get_by_id(lesson_id).vocab)
+        print(self.word, self.vocab)
         assert self.vocab is not None
         # print(self.word, self.vocab)
         self.getSynthesis()
+
     def getSynthesis(self):
         # Finding the original word without endings(ing, ed, etc.)
         original_word = None
-        for vocab_word in self.vocab:
+        for vocab_word in reversed(self.vocab):
             if self.word.startswith(vocab_word):
                 original_word = vocab_word
                 break
         assert original_word is not None
-        translation = globals.defs.translate(original_word)
+        translation = global_vars.defs.translate(original_word)
+        self.text = '<b>{}</b>\n{}'.format(original_word,
+                                           '\n'.join(translation))
+        self.data = synthesis(f'{original_word}\n{original_word}', speed=80)
 
-        self.text = '<b>{}</b>\n{}'.format(original_word, '\n'.join(translation))
-
-        self.data=Synthesis(f'{original_word}\n{original_word}', speed=80)
     def get_content(self) -> Content:
         return Content(file=self.data, text=self.text, type=Content.Type.VOICE)
     
@@ -229,76 +115,50 @@ class NarrationPost(GhostPost):
         self.lesson_id = lesson_id
         self.getSynthesis()
     def getSynthesis(self):
-        lesson = globals.lessons.get_by_id(self.lesson_id)
+        lesson = Lessons.get_by_id(self.lesson_id)
         speed = 100
-        if lesson.grade <= 3: 
+        if lesson.grade <= 3:
             speed = 85
-        self.data = Synthesis(lesson.text, 0, speed)
+        self.data = synthesis(lesson.text, 0, speed)
     def get_content(self) -> Content:
         return Content(file=self.data, type=Content.Type.VOICE)
 
-class PageContainerPost(Post):
-    """
-    Abstract base class for posts that support navigation between several "pages". 
-    """
-    def __init__(self, update: Update, num_pages):
-        super().__init__(update)
-        self.num_pages = num_pages
-        self.page_idx = 0
-        self._update_history()
-        #don't override previous post, should be able to return to it
-        # globals.history.make_navigational_post(self, self.update)
-    def go_back(self) -> Post:
-        return globals.history.get_navigational_post(self.owner_id).previous().post
-    def next_page(self):
-        self.page_idx += 1
-    def previous_page(self):
-        self.page_idx -= 1
-    def get_markup(self) -> IKMarkup:
-        navigation_buttons: List[IKButton] = []
-
-        if self.page_idx > 0:
-            navigation_buttons.append(
-                IKButton('قبلی', callback_data=Callback.PREVIOUS))
-        if self.page_idx < self.num_pages - 1:
-            navigation_buttons.append(
-                IKButton('بعدی', callback_data=Callback.NEXT))
-
-        return IKMarkup([navigation_buttons, [IKButton('بازگشت', callback_data=Callback.BACK)]])
 
 class ChooseLessonPost(PageContainerPost):
     def __init__(self, update: Update):
-        num_pages = int(globals.lessons.len / LESSONS_PER_PAGE)
+        num_pages = Lessons.get_count() // LESSONS_PER_PAGE
         self.lessons_per_page = LESSONS_PER_PAGE
         super().__init__(update, num_pages)
+
     def get_content(self):
         return Content(text='Please choose one of the following:')
+
     def get_markup(self):
         buttons = []
         for i in range(self.lessons_per_page):
             lesson_id = self.page_idx * self.lessons_per_page + i
             buttons.append([IKButton(
-                globals.lessons.get_by_id(index=lesson_id).name,
+                Lessons.get_by_id(lesson_id).name,
                 callback_data=Callback.BASE_LESSON_STRING+str(lesson_id))])
         return IKMarkup(buttons + super().get_markup().inline_keyboard)
 
 
 class PronunciationQuizPost(PageContainerPost):
     def __init__(self, update: Update, lesson_id):
-        self.vocab = globals.lessons.get_by_id(lesson_id).vocab
+        self.vocab = ast.literal_eval(Lessons.get_by_id(lesson_id).vocab)
         assert self.vocab is not None
         super().__init__(update, len(self.vocab))
-
         self.lesson_id = lesson_id
+
     def get_content(self) -> Content:
         return Content(text='Please pronounce the following word 2 times:\n* ' +
-                       globals.lessons.get_by_id(self.lesson_id).vocab[self.page_idx])
+                       self.vocab[self.page_idx])
 
-#FIX: can't test this, so not fixing atm
+# FIX: can't test this, so not fixing atm
 class PronunciationResponsePost(GhostPost, BackSupportPost):
-    def __init__(self, update: Update, lesson_id, word_num, results):
+    def __init__(self, update, lesson_id, word_num, results):
         super().__init__(update)
-        self.vocab = globals.lessons.get_by_id(lesson_id).vocab
+        self.vocab = ast.literal_eval(Lessons.get_by_id(lesson_id).vocab)
         assert self.vocab is not None
         self.lesson_id = lesson_id
         self.word_num = word_num
@@ -307,19 +167,17 @@ class PronunciationResponsePost(GhostPost, BackSupportPost):
 
     def get_content(self) -> Content:
         msg = self.results
-
         if not self.questions_remaining:
             msg += '\n\n Well done! You finished the test.'
-
         return Content(text=msg)
-
+        
     def get_markup(self) -> IKMarkup:
         button_row = []
         if self.questions_remaining:
-            button_row.append(IKButton('خب', callback_data=Callback.NEXT_QUIZ_QUESTION))
-
-        button_row.append(IKButton('دوباره', callback_data=Callback.PRONUNCIATION_QUIZ))
-        
+            button_row.append(
+                IKButton('خب', callback_data=Callback.NEXT_QUIZ_QUESTION))
+        button_row.append(
+            IKButton('دوباره', callback_data=Callback.PRONUNCIATION_QUIZ))
         return IKMarkup([button_row] + super().get_markup().inline_keyboard)
 
 
