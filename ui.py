@@ -37,17 +37,24 @@ class HomePost(BasicPost):
 class LessonPost(BackSupportPost):
     def __init__(self, update: Update, lesson_id):
         self.lesson_id = lesson_id
-        self.vocab = ast.literal_eval(Lessons.get_by_id(self.lesson_id).vocab)
+
+        vocab = Lessons.get_by_id(self.lesson_id).vocab
+        if vocab:
+            self.vocab = ast.literal_eval(vocab)
+        else:
+            self.vocab = None
+
         self.vocab_available = self.vocab is not None
-        self.text = self._slashify()
+
+        self.text = Lessons.get_by_id(self.lesson_id).text
+        if self.vocab_available:
+            self._slashify()
+
         super().__init__(update)
 
-    def _slashify(self) -> str:
-        text = Lessons.get_by_id(self.lesson_id).text
+    def _slashify(self):
         self.vocab = ast.literal_eval(Lessons.get_by_id(self.lesson_id).vocab)
-        if self.vocab is None:
-            return text
-        words: List[str] = text.split()
+        words: List[str] = self.text.split()
         for i in range(len(words)):
             matched = False
             for j in range(len(self.vocab)):
@@ -57,7 +64,7 @@ class LessonPost(BackSupportPost):
                     break
             if matched:
                 words[i] = '/' + words[i]
-        return ' '.join(words)
+        self.text = ' '.join(words)
 
     def get_content(self) -> Content:
         text = "<b>{}</b>\n\n{}".format(

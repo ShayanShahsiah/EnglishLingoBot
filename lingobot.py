@@ -7,7 +7,7 @@ from telegram import Bot, Update, Message, CallbackQuery
 import ui
 from lessons import Lessons
 from auth_token import token
-# from recognition import recognition
+from recognition import recognition
 from multiprocessing import Process
 import logging
 import subprocess
@@ -16,6 +16,8 @@ import global_vars
 # initial global variables, DO THIS ONLY ONCE
 global_vars.init()
 # temporary log decoration
+
+
 def log(verbose=True):
     def logger(function):
         @functools.wraps(function)
@@ -42,19 +44,21 @@ def log(verbose=True):
         return wrapper_logger
     return logger
 
+
 class LingoBot:
     def __init__(self):
         self._updater = Updater(token=token, use_context=True)
         self._dispatcher = self._updater.dispatcher
         self._add_handlers()
-    # @log()
+
+    @log()
     def run(self):
         self._updater.start_polling()
         self._updater.idle()
 
-    # @log()
+    @log()
     def _post(self, update: Update, context: CallbackContext, post: Post, edit=True):
-        
+
         editable = update.callback_query is not None
         if edit and editable:
             # Edit the previous message instead of sending a new one.
@@ -74,17 +78,17 @@ class LingoBot:
             bot: Bot = context.bot
             if content.type == Content.Type.TEXT:
                 message = bot.send_message(text=content.text,
-                                 chat_id=update.effective_chat.id,
-                                 reply_markup=post.get_markup(),
-                                 parse_mode=post.parse_mode)
+                                           chat_id=update.effective_chat.id,
+                                           reply_markup=post.get_markup(),
+                                           parse_mode=post.parse_mode)
             elif content.type == Content.Type.VOICE:
                 if type(content.file) is bytes:
                     file = BytesIO(content.file)
                     message = bot.send_voice(voice=file,
-                                caption=content.text,
-                                chat_id=update.effective_chat.id,
-                                reply_markup=post.get_markup(),
-                                parse_mode=post.parse_mode)
+                                             caption=content.text,
+                                             chat_id=update.effective_chat.id,
+                                             reply_markup=post.get_markup(),
+                                             parse_mode=post.parse_mode)
                 else:
                     raise NotImplementedError
                     # TODO: files should be sent on another process
@@ -104,7 +108,7 @@ class LingoBot:
     def _add_handlers(self):
         self._dispatcher.add_handler(
             CommandHandler('start', self._on_command_start))
-            
+
         self._dispatcher.add_handler(
             CallbackQueryHandler(self._on_callback_query))
 
@@ -116,7 +120,7 @@ class LingoBot:
 
     @log()
     def _on_command_start(self, update: Update, context: CallbackContext):
-        #clear history for user, incase start is pressed again:
+        # clear history for user, incase start is pressed again:
         global_vars.history.clear_navigational_post(update._effective_user.id)
         self._post(update, context, ui.HomePost(update))
 
@@ -124,14 +128,16 @@ class LingoBot:
     def _on_callback_query(self, update: Update, context: CallbackContext):
         query: CallbackQuery = update.callback_query
         callback_data: str = query.data
-        # get a pointer to current post in chat for user 
-        current_post = global_vars.history.get_navigational_post(update._effective_user.id).newest().post
+        # get a pointer to current post in chat for user
+        current_post = global_vars.history.get_navigational_post(
+            update._effective_user.id).newest().post
         new_post: Post = None
         query_answer: str = ""
-        #clear clutter if there is any
+        # clear clutter if there is any
         global_vars.history.clear_removal_stack(context.bot, update)
         if callback_data == ui.Callback.BACK:
-            assert isinstance(current_post, ui.BackSupportPost) or isinstance(current_post, ui.PageContainerPost)
+            assert isinstance(current_post, ui.BackSupportPost) or isinstance(
+                current_post, ui.PageContainerPost)
             new_post = current_post.go_back()
 
         elif callback_data == ui.Callback.HOME:
@@ -157,7 +163,7 @@ class LingoBot:
 
         elif callback_data == ui.Callback.NARRATION:
             assert isinstance(current_post, ui.LessonPost)
-            #remove previous clutter
+            # remove previous clutter
             lesson_id = current_post.lesson_id
             new_post = ui.NarrationPost(update, lesson_id)
             query_answer = "Please be patient.."
@@ -192,8 +198,8 @@ class LingoBot:
             global_vars.history.clear_removal_stack(context.bot, update)
         else:
             print(f'No callback found for: {callback_data}')
-            new_post = ui.UnimplementedResponsePost(update, 
-                'Sorry! An internal error occurred!')
+            new_post = ui.UnimplementedResponsePost(update,
+                                                    'Sorry! An internal error occurred!')
 
         query.answer(query_answer)
         if new_post:
@@ -207,12 +213,13 @@ class LingoBot:
 
     @log()
     def _on_voice_message(self, update: Update, context: CallbackContext):
-        current_post = global_vars.history.get_navigational_post(update._effective_user.id).newest().post
+        current_post = global_vars.history.get_navigational_post(
+            update._effective_user.id).newest().post
         assert isinstance(current_post, ui.PronunciationQuizPost)
         word_num = current_post.page_idx
 
         message: Message = update.message
-        
+
         message.voice.get_file().download('Audio/voice.ogg')
         output = subprocess.check_output(
             ['bash', '-c', 'ffmpeg -i Audio/voice.ogg -acodec pcm_s16le -ac 1 -ar 16000 -y Audio/out.wav'])
@@ -220,25 +227,28 @@ class LingoBot:
 
         result = '<b><i>incorrect</i></b>'
         for word in output:
-            if word.lower() == ui.lessons.get_by_id(current_post.lesson_id).vocab[word_num].lower().strip():
+            if word.lower() == Lessons.get_by_id(current_post.lesson_id).vocab[word_num].lower().strip():
                 result = '<b><i>correct</i></b>'
 
         msg = f'processed:\n{output}\n\nresult: {result}'
-        new_post = ui.PronunciationResponsePost(update, 
-            current_post.lesson_id, word_num, msg)
+        new_post = ui.PronunciationResponsePost(update,
+                                                current_post.lesson_id, word_num, msg)
 
         self._post(update, context, new_post)
+
     @log()
     def _on_message(self, update: Update, context: CallbackContext):
         global_vars.history.clear_removal_stack(context.bot, update)
         msg = update.message.text
         if msg[0] == '/':
-            #remove previous clutter
+            # remove previous clutter
             # These clutter the screen, add them to removal stack
             global_vars.history.add_to_removal_stack(update)
-            current_post = global_vars.history.get_navigational_post(update._effective_user.id).newest().post
+            current_post = global_vars.history.get_navigational_post(
+                update._effective_user.id).newest().post
             assert isinstance(current_post, ui.LessonPost)
-            self._post(update, context, ui.PronunciationPost(update, msg[1:], current_post.lesson_id))
+            self._post(update, context, ui.PronunciationPost(
+                update, msg[1:], current_post.lesson_id))
         else:
             self._post(update, context, ui.UnimplementedResponsePost(update))
 
